@@ -1,8 +1,6 @@
 package com.nuvio.tv.ui.screens.home
 
-import android.app.NotificationManager
 import android.content.Context
-import android.media.AudioManager
 import android.util.Log
 import android.view.ViewTreeObserver
 import androidx.compose.animation.EnterTransition
@@ -228,14 +226,15 @@ internal fun rememberNotflixPreviewSession(
     return session
 }
 
-private fun previewSystemMuted(context: Context, sound: Boolean): Boolean = runCatching {
-    val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    val notifications = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    previewShouldMute(sound,
-        audio.isStreamMute(AudioManager.STREAM_MUSIC) || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0,
-        audio.ringerMode != AudioManager.RINGER_MODE_NORMAL,
-        notifications.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL)
-}.getOrDefault(true)
+/**
+ * Restyle 2: in the Notflix preview path the trailer volume follows the sound
+ * preference ONLY. The system gates used to silence every trailer on this
+ * box — DND was on (set by the launcher), the ringer check is meaningless on
+ * a TV box, and the mute toggle is unreachable in the Notflix look — so a
+ * muted-by-default preference plus DND meant permanently silent trailers.
+ * Fullscreen-player audio is untouched (this function is preview-only).
+ */
+private fun previewSystemMuted(context: Context, sound: Boolean): Boolean = !sound
 
 /** Reuses both official player component and official pool. No player/resolver implementation is copied. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)

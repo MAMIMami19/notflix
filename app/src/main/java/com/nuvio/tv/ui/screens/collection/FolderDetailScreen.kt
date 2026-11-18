@@ -608,7 +608,7 @@ private fun RowsContent(
     focusedPosterBackdropExpandEnabled: Boolean = false,
     focusedPosterBackdropExpandDelaySeconds: Int = 3,
     focusedPosterBackdropTrailerEnabled: Boolean = false,
-    focusedPosterBackdropTrailerMuted: Boolean = true,
+    focusedPosterBackdropTrailerMuted: Boolean = false,
     trailerPreviewUrls: Map<String, String> = emptyMap(),
     trailerPreviewAudioUrls: Map<String, String> = emptyMap()
 ) {

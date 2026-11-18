@@ -19,7 +19,7 @@ import java.io.IOException
 
 data class AppearanceRead(val requested: AppAppearance, val failed: Boolean = false, val reduceHomeMotion: Boolean = false,
     val introEnabled: Boolean = true, val introSoundEnabled: Boolean = true, val introOptionsValid: Boolean = true,
-    val previewEnabled: Boolean = true, val previewSoundEnabled: Boolean = false, val previewOptionsValid: Boolean = true,
+    val previewEnabled: Boolean = true, val previewSoundEnabled: Boolean = true, val previewOptionsValid: Boolean = true,
     val uiSoundsEnabled: Boolean = true, val uiSoundsOptionsValid: Boolean = true,
     val wikipediaEnabled: Boolean = true, val wikipediaOptionsValid: Boolean = true,
     val cardOpening: NotflixCardOpening = NotflixCardOpening.DEFAULT,
@@ -72,7 +72,11 @@ class NotflixAppearanceStore @Inject constructor(private val factory: ProfileDat
                     introSoundEnabled = introValid && (values[INTRO_SOUND_ENABLED] as? Boolean ?: true),
                     introOptionsValid = introValid,
                     previewEnabled = previewValid && (values[PREVIEW_ENABLED] as? Boolean ?: true),
-                    previewSoundEnabled = previewValid && (values[PREVIEW_SOUND_ENABLED] as? Boolean ?: false),
+                    // Restyle 2: Notflix focus-preview trailers play WITH sound by
+                    // default (was muted). This is the flag the preview actually
+                    // reads (lease.sound); the layout mute toggle is unreachable
+                    // in the Notflix look and governs the classic path only.
+                    previewSoundEnabled = previewValid && (values[PREVIEW_SOUND_ENABLED] as? Boolean ?: true),
                     previewOptionsValid = previewValid,
                     uiSoundsEnabled = values[UI_SOUNDS_ENABLED] as? Boolean ?: true,
                     uiSoundsOptionsValid = uiSoundsValid,

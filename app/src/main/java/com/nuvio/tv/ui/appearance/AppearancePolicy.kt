@@ -34,7 +34,7 @@ data class AppearanceState(
     val introSoundEnabled: Boolean = false,
     val introOptionsValid: Boolean = false,
     val previewEnabled: Boolean = false,
-    val previewSoundEnabled: Boolean = false,
+    val previewSoundEnabled: Boolean = true,
     val previewOptionsValid: Boolean = false,
     val uiSoundsEnabled: Boolean = true,
     val uiSoundsOptionsValid: Boolean = false,

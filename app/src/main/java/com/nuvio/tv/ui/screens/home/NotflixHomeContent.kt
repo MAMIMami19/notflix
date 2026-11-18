@@ -266,8 +266,8 @@ fun NotflixHomeContent(
     onRemoveContinue: (ContinueWatchingItem) -> Unit = {},
     onFolder: (String, String) -> Unit,
     onSeeAllCatalog: (String, String, String) -> Unit = { _, _, _ -> },
-    /** Restyle 2: OK on a genre tile opens that genre's browse screen. */
-    onGenreBrowse: (NotflixGenre) -> Unit = {},
+    /** Restyle 2: OK on a genre tile opens that genre's browse screen (by tag). */
+    onGenreBrowse: (String) -> Unit = {},
     onVisibleRow: (String) -> Unit,
     onHiddenRow: (String) -> Unit = {},
     onLoadMore: (String, String, String) -> Unit = { _, _, _ -> },
@@ -824,7 +824,7 @@ fun NotflixHomeContent(
                         onActualFocus = ::recordActualFocus,
                         onFocused = { index, tile -> recordTile(rowIndex, row, index, tile) },
                         onKey = { index, key -> rowOnKey(rowIndex, row, index, key) },
-                        onGenreClick = onGenreBrowse)
+                        onGenreClick = { genre -> onGenreBrowse(genre.tag) })
                 } else if (row.tiles.isNotEmpty() || row.phase != NotflixRowPhase.READY) {
                     val savedScroll = memory.rowScroll[row.key]
                     val horizontal = rememberLazyListState(savedScroll?.first ?: 0, savedScroll?.second ?: 0)
