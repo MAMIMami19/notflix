@@ -99,6 +99,8 @@ fun HomeScreen(
     onContinueWatchingPlayManually: (ContinueWatchingItem) -> Unit = onContinueWatchingClick,
     onNavigateToCatalogSeeAll: (String, String, String) -> Unit = { _, _, _ -> },
     onNavigateToFolderDetail: (String, String) -> Unit = { _, _ -> },
+    /** Restyle 2: opens the dedicated genre browse screen for a genre tag. */
+    onNavigateToGenreBrowse: (String) -> Unit = {},
     /** M66: KIDS notice shortcut to Settings → Integraciones → Notflix. */
     onNavigateToNotflixIntegrations: () -> Unit = {}
 ) {
@@ -215,6 +217,7 @@ fun HomeScreen(
     val onContinueWatchingPlayManuallyStable = remember(onContinueWatchingPlayManually) { onContinueWatchingPlayManually }
     val onNavigateToCatalogSeeAllStable = remember(onNavigateToCatalogSeeAll) { onNavigateToCatalogSeeAll }
     val onNavigateToFolderDetailStable = remember(onNavigateToFolderDetail) { onNavigateToFolderDetail }
+    val onNavigateToGenreBrowseStable = remember(onNavigateToGenreBrowse) { onNavigateToGenreBrowse }
     val onRemoveContinueWatchingStable = remember(viewModel) {
         { contentId: String, season: Int?, episode: Int?, isNextUp: Boolean ->
             viewModel.onEvent(HomeEvent.OnRemoveContinueWatching(contentId, season, episode, isNextUp))
@@ -323,6 +326,7 @@ fun HomeScreen(
                     item.contentId(), item.season(), item.episode(), item is ContinueWatchingItem.NextUp)) },
                 onFolder = onNavigateToFolderDetailStable,
                 onSeeAllCatalog = onNavigateToCatalogSeeAll,
+                onGenreBrowse = onNavigateToGenreBrowseStable,
                 onVisibleRow = viewModel::requestLazyCatalogLoad,
                 onHiddenRow = viewModel::releaseNotflixCollectionRow,
                 onLoadMore = { catalog, addon, type -> viewModel.onEvent(HomeEvent.OnLoadMoreCatalog(catalog, addon, type)) },

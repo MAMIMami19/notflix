@@ -266,6 +266,8 @@ fun NotflixHomeContent(
     onRemoveContinue: (ContinueWatchingItem) -> Unit = {},
     onFolder: (String, String) -> Unit,
     onSeeAllCatalog: (String, String, String) -> Unit = { _, _, _ -> },
+    /** Restyle 2: OK on a genre tile opens that genre's browse screen. */
+    onGenreBrowse: (NotflixGenre) -> Unit = {},
     onVisibleRow: (String) -> Unit,
     onHiddenRow: (String) -> Unit = {},
     onLoadMore: (String, String, String) -> Unit = { _, _, _ -> },
@@ -312,13 +314,9 @@ fun NotflixHomeContent(
         notflixRows(presentation, keepPendingCw, cwTitle, episodePattern, seeAll, myListRow, becauseRow,
             airingTitle, airingCaption)
     }
-    // Restyle: the active genre filter (null = unfiltered). The strip row stays
-    // first while filtered; displayRows is what the home renders and navigates.
-    var selectedGenre by remember { mutableStateOf<NotflixGenre?>(null) }
-    val displayRows = remember(rows, selectedGenre) {
-        val genre = selectedGenre
-        if (genre == null) rows else notflixFilterRowsByGenre(rows, genre)
-    }
+    // Restyle 2: no in-place genre filter — OK on a tile opens the genre's
+    // own browse screen, so the home always renders the full rows.
+    val displayRows = rows
     val heroes = if (state.heroSectionEnabled && !notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) {
         val source = presentation.notflixCatalog.heroItems
         val ageAllowed = if (state.ageLimit == null) source else source.filter { state.allowsForAge(it) }
@@ -712,8 +710,6 @@ fun NotflixHomeContent(
         // M32: one handler reads the action cursor at event time; the second handler's enabled flag
         // was a composition read. Back inside the panel still returns to the card itself.
         if (cardCursor != null) { cardCursor = null; return@BackHandler }
-        // Restyle: BACK with a genre filter active clears the filter first.
-        if (selectedGenre != null) { selectedGenre = null; return@BackHandler }
         previewSession?.cancel()
         val saved = memory.focus
         if (saved != null && saved.rowKey != "hero" && saved.index > 0) {
@@ -824,11 +820,11 @@ fun NotflixHomeContent(
                             rowStates.remove(row.key)
                         }
                     }
-                    NotflixGenreStripRow(row, horizontal, requesters, selectedGenre,
+                    NotflixGenreStripRow(row, horizontal, requesters,
                         onActualFocus = ::recordActualFocus,
                         onFocused = { index, tile -> recordTile(rowIndex, row, index, tile) },
                         onKey = { index, key -> rowOnKey(rowIndex, row, index, key) },
-                        onGenreClick = { genre -> selectedGenre = if (selectedGenre == genre) null else genre })
+                        onGenreClick = onGenreBrowse)
                 } else if (row.tiles.isNotEmpty() || row.phase != NotflixRowPhase.READY) {
                     val savedScroll = memory.rowScroll[row.key]
                     val horizontal = rememberLazyListState(savedScroll?.first ?: 0, savedScroll?.second ?: 0)
@@ -911,13 +907,6 @@ fun NotflixHomeContent(
                             if (tile.cw != null) cwOptions = tile.cw
                             else tile.meta?.let { onLongPress(it, rowCatalogBase(state, row.key).ifBlank { it.sourceAddonBaseUrl.orEmpty() }) }
                         }, onRetry = { row.folderTarget?.let { onFolder(it.first, it.second) } ?: onRetry() })
-                }
-            }
-            if (selectedGenre != null && displayRows.size <= 1) {
-                item("genre-empty") {
-                    Text(stringResource(R.string.notflix_genre_empty, selectedGenre?.titleAr.orEmpty()),
-                        color = Spec.Secondary, fontSize = 18.sp,
-                        modifier = Modifier.padding(horizontal = Spec.GUTTER.dp, vertical = 36.dp))
                 }
             }
             if (displayRows.none { it.tiles.isNotEmpty() } && displayRows.none { it.phase == NotflixRowPhase.PENDING }) {

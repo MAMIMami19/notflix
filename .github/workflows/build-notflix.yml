@@ -1,10 +1,12 @@
-name: Build Notflix Restyle 1
+name: Build Notflix Restyle 2
 
-# Notflix restyle 1 (1.0.0-beta.4.1-restyle1, vc 1077, com.notflix.tv.custom):
+# Notflix restyle 2 (1.0.0-beta.4.1-restyle2, vc 1078, com.notflix.tv.custom):
 # a side-by-side custom build that installs ALONGSIDE upstream Notflix.
 # - Genre strip on the home (row 0): 21 Matrix-Productions-style landscape
-#   tiles with the user's genre names, animated on focus; tapping one filters
-#   the home rows in place (tap again or BACK clears).
+#   tiles, Arabic name on a refined dark per-genre color (NO pictures on the
+#   tiles); OK on a tile opens that genre's dedicated browse screen, whose
+#   content is matched to the genre (TMDB genres, title/synopsis words,
+#   origin country for anime, recency + rating for new & worthy).
 # - Netflix-style home: same-theme catalog rows from different addons merge
 #   into one row, and stock theme rows get Netflix-style Arabic titles.
 # - Hero scrim spans the full width (was a 75% band with a hard edge).
@@ -19,7 +21,7 @@ on:
 # Serialize runs: two concurrent full-release builds died together when the
 # runner pool cancelled them (Matrix runs 43618067580/43618374036); queue instead.
 concurrency:
-  group: notflix-restyle-1-build
+  group: notflix-restyle-2-build
   cancel-in-progress: false
 
 permissions:
@@ -75,9 +77,9 @@ jobs:
           # are invisible to the in-app updater (unauthenticated API calls
           # never see them, and the tag is not a valid version anyway).
           # Delete the draft after the APKs are verified/downloaded.
-          TAG="notflix-restyle1-draft-${{ github.run_number }}"
+          TAG="notflix-restyle2-draft-${{ github.run_number }}"
           gh release create "$TAG" \
             --draft \
-            --title "Notflix Restyle 1 draft (CI run ${{ github.run_number }})" \
-            --notes "CI-built Notflix Restyle 1 release APKs (1.0.0-beta.4.1-restyle1, vc 1077, com.notflix.tv.custom): genre strip with 21 animated tiles + in-place filtering, merged rows + Netflix-style Arabic titles, full-width hero scrim. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            --title "Notflix Restyle 2 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 2 release APKs (1.0.0-beta.4.1-restyle2, vc 1078, com.notflix.tv.custom): 21 name-only genre tiles with refined per-genre colors, each opening its own dedicated browse screen with genre-matched content; merged rows + Netflix-style Arabic titles; full-width hero scrim. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk

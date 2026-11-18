@@ -37,18 +37,23 @@ import com.nuvio.tv.ui.appearance.LocalNotflixPresentation
 import com.nuvio.tv.ui.appearance.NotflixVisualSpec as Spec
 
 /**
- * Restyle (2026-11-18): the genre strip on the Notflix home.
+ * Restyle 2 (2026-11-19): the genre strip on the Notflix home.
  *
  * One tile per genre from the user's own dictated list (21 names, in order),
- * modelled on Matrix's Productions row: a LANDSCAPE tile (248x140) whose
- * artwork is the name itself on a dark per-genre gradient, animated while
- * focused (scale + brighten + a slow diagonal shine sweep). No emoji, ever.
+ * modelled on Matrix's Productions row: a LANDSCAPE tile (248x140) with the
+ * Arabic name on a dark per-genre color — refined per genre, dark cinematic.
+ * NO pictures on the tiles (his correction: «مش صورة في الايقونات قصدي في
+ * محتوي لداخل» — the picture belongs to the content inside). Tiles animate
+ * while focused (scale + brighten + a slow diagonal shine sweep).
+ * No emoji, ever.
  *
- * Tapping a tile filters the home rows in place (Netflix mood-bar behaviour):
- * rows whose title is the genre stay whole; other rows keep only the items
- * whose TMDB genres (or title keywords, for genres TMDB has no code for)
- * match. Tapping the selected tile again, or pressing BACK, clears the
- * filter. There is no «الكل» tile: the dictated list has none.
+ * OK on a tile opens that genre's dedicated browse screen
+ * ([NotflixGenreBrowseScreen]); BACK from there returns to the home. The
+ * content inside must express the genre's title: items match by TMDB genre,
+ * title words, synopsis words, origin country (anime = Japanese animation)
+ * and recency/rating (new & worthy). A row whose title names the genre feeds
+ * its screen whole — except anime, whose row mixes in western animation.
+ * There is no «الكل» tile: the dictated list has none.
  */
 internal const val NOTFLIX_GENRES_ROW_KEY = "genres"
 
@@ -61,59 +66,120 @@ internal data class NotflixGenre(
     val matchTerms: List<String> = emptyList(),
     /** Title keywords, for genres with no TMDB genre code (WWE, holidays, ...). */
     val nameKeywords: List<String> = emptyList(),
+    /** Synopsis keywords — matched against the item description. */
+    val descriptionKeywords: List<String> = emptyList(),
+    /** Synopsis regexes (case-insensitive) — for phrases keywords can't
+     *  express, e.g. "based on …'s novel". */
+    val descriptionPatterns: List<String> = emptyList(),
+    /** Catalog-row titles that feed this genre whole (browse screen only). */
+    val rowTitleTerms: List<String> = emptyList(),
     /** Matches items released this year or last (الجديد والجدير بالمشاهدة). */
-    val matchRecent: Boolean = false
+    val matchRecent: Boolean = false,
+    /** Minimum IMDb rating when one exists (الجديد «والجدير بالمشاهدة»). */
+    val minRating: Float? = null,
+    /** Anime: Animation genre + Japanese origin (or the word "anime"). */
+    val matchAnime: Boolean = false,
+    /** A row whose title names the genre feeds the browse screen whole.
+     *  False for anime: the anime row mixes in western animation, so its
+     *  items are matched one by one instead. */
+    val wholeRowOnTitleMatch: Boolean = true
 )
 
 internal val NOTFLIX_GENRES: List<NotflixGenre> = listOf(
     // مزاج is a meta-category: the "mood" cluster, not one TMDB genre.
-    NotflixGenre("mood", "مزاج", Color(72, 24, 64), Color(28, 10, 26),
+    NotflixGenre("mood", "مزاج", Color(88, 28, 76), Color(30, 10, 28),
         matchTerms = listOf("Drama", "Romance", "Comedy", "Music", "Family", "دراما", "رومانسي", "كوميديا", "موسيقي", "عائلي")),
-    NotflixGenre("comedy", "كوميديا", Color(74, 46, 10), Color(31, 18, 4),
+    NotflixGenre("comedy", "كوميديا", Color(96, 58, 10), Color(38, 22, 4),
         matchTerms = listOf("Comedy", "كوميديا")),
-    NotflixGenre("fantasy", "فانتازيا", Color(58, 31, 92), Color(22, 10, 40),
+    NotflixGenre("fantasy", "فانتازيا", Color(72, 38, 112), Color(26, 12, 46),
         matchTerms = listOf("Fantasy", "فانتازيا")),
-    // No TMDB genre for youth stories; Family is the closest signal.
-    NotflixGenre("youth_stories", "قصص شبابية للأبد", Color(15, 58, 58), Color(7, 26, 26),
-        matchTerms = listOf("Family", "عائلي")),
-    NotflixGenre("sci_fi", "خيال علمي", Color(18, 41, 77), Color(8, 15, 34),
+    // No TMDB genre for youth stories: Family + teen / coming-of-age signals.
+    NotflixGenre("youth_stories", "قصص شبابية للأبد", Color(16, 72, 72), Color(8, 30, 30),
+        matchTerms = listOf("Family", "عائلي"),
+        nameKeywords = listOf("teen", "high school", "coming of age", "coming-of-age", "youth", "شباب", "مراهق", "مراهقين", "ثانوية"),
+        descriptionKeywords = listOf("coming-of-age", "coming of age", "teenager", "high school", "teen", "شباب", "مراهق")),
+    NotflixGenre("sci_fi", "خيال علمي", Color(22, 52, 96), Color(9, 18, 40),
         matchTerms = listOf("Science Fiction", "Sci-Fi", "خيال علمي")),
-    NotflixGenre("holidays", "موسم الأعياد", Color(15, 58, 31), Color(7, 26, 12),
-        nameKeywords = listOf("christmas", "holiday", "xmas", "عيد", "كريسماس", "رأس السنة")),
-    // No TMDB genre for book adaptations; title keywords are the only signal.
-    NotflixGenre("books_on_screen", "كتبك المفضلة على الشاشة", Color(58, 36, 16), Color(24, 14, 5),
-        nameKeywords = listOf("novel", "book", "رواية", "كتاب")),
-    NotflixGenre("romance", "رومانسي", Color(77, 18, 38), Color(32, 8, 18),
+    NotflixGenre("holidays", "موسم الأعياد", Color(18, 72, 38), Color(8, 30, 14),
+        nameKeywords = listOf("christmas", "holiday", "holidays", "xmas", "santa", "halloween", "easter", "ramadan", "noel", "new year", "عيد", "كريسماس", "رأس السنة", "رمضان", "هالوين"),
+        descriptionKeywords = listOf("christmas", "santa claus", "halloween", "عيد", "كريسماس", "رمضان")),
+    // No TMDB genre for book adaptations: title words + adaptation phrases.
+    // Bare "book"/"novel" are too loose ("reads from a book", "by-the-book",
+    // "a novel twist"), so the synopsis must name the adaptation.
+    NotflixGenre("books_on_screen", "كتبك المفضلة على الشاشة", Color(72, 46, 18), Color(28, 17, 6),
+        nameKeywords = listOf("novel", "رواية", "كتاب"),
+        descriptionKeywords = listOf("novel by", "bestselling novel", "best-selling novel", "book series", "the book by", "graphic novel", "مقتبس من رواية", "مقتبس عن رواية", "عن رواية"),
+        descriptionPatterns = listOf(
+            """based on[^.]{0,50}\b(novel|book|comics?)\b""",
+            """adapted from[^.]{0,50}\b(novel|book|comics?)\b""",
+            """inspired[^.]{0,40}\b(novel|book)\b""",
+            // "comic book" as an adaptation signal — but not a comic book STORE.
+            """\bcomic books?\b(?! store\b)"""
+        )),
+    NotflixGenre("romance", "رومانسي", Color(96, 22, 46), Color(38, 9, 20),
         matchTerms = listOf("Romance", "رومانسي")),
-    NotflixGenre("reality", "واقعي", Color(46, 52, 64), Color(20, 23, 29),
-        matchTerms = listOf("Reality", "واقعي")),
-    NotflixGenre("kids_family", "الأطفال والعائلة", Color(18, 58, 77), Color(8, 24, 34),
+    // واقعي is true-story / realistic: Reality TV + Biography/History + "true story".
+    NotflixGenre("reality", "واقعي", Color(58, 64, 78), Color(24, 27, 34),
+        matchTerms = listOf("Reality", "Biography", "History", "واقعي"),
+        descriptionKeywords = listOf("true story", "true events", "قصة حقيقية", "أحداث حقيقية", "مبني على قصة حقيقية")),
+    NotflixGenre("kids_family", "الأطفال والعائلة", Color(22, 72, 96), Color(9, 28, 40),
         matchTerms = listOf("Family", "Kids", "عائلي", "أطفال")),
-    NotflixGenre("animation", "رسوم متحركة", Color(77, 36, 8), Color(32, 14, 3),
+    NotflixGenre("animation", "رسوم متحركة", Color(96, 46, 10), Color(38, 17, 4),
         matchTerms = listOf("Animation", "رسوم متحركة")),
-    NotflixGenre("anime", "أنيمي", Color(58, 16, 56), Color(24, 8, 22),
-        matchTerms = listOf("Anime", "Animation", "أنيمي", "رسوم متحركة")),
-    NotflixGenre("documentary", "وثائقيات", Color(42, 51, 32), Color(18, 22, 12),
+    // Anime is NOT all animation: Japanese origin (or the word "anime") only.
+    // The anime row is NOT taken whole — it mixes in western animation.
+    NotflixGenre("anime", "أنيمي", Color(72, 20, 70), Color(28, 9, 26),
+        matchTerms = listOf("Anime", "أنيمي", "أنمي"),
+        nameKeywords = listOf("anime", "أنيمي", "أنمي"),
+        matchAnime = true,
+        wholeRowOnTitleMatch = false),
+    NotflixGenre("documentary", "وثائقيات", Color(52, 64, 38), Color(21, 26, 14),
         matchTerms = listOf("Documentary", "وثائقي")),
-    NotflixGenre("astrology", "علم التنجيم", Color(26, 26, 77), Color(10, 10, 32),
-        nameKeywords = listOf("astrology", "zodiac", "horoscope", "تنجيم", "أبراج", "برج")),
-    NotflixGenre("wwe", "WWE", Color(77, 16, 16), Color(32, 7, 7),
-        nameKeywords = listOf("wwe")),
-    NotflixGenre("improv", "ارتجالي", Color(58, 42, 8), Color(24, 17, 4),
-        nameKeywords = listOf("improv", "ارتجالي")),
-    NotflixGenre("new_worthy", "الجديد والجدير بالمشاهدة", Color(15, 58, 40), Color(7, 26, 18),
-        matchRecent = true),
-    NotflixGenre("crime", "جريمة", Color(16, 24, 40), Color(7, 11, 18),
-        matchTerms = listOf("Crime", "جريمة")),
-    NotflixGenre("action", "أكشن", Color(77, 15, 20), Color(32, 6, 7),
+    NotflixGenre("astrology", "علم التنجيم", Color(32, 32, 96), Color(12, 12, 38),
+        nameKeywords = listOf("astrology", "zodiac", "horoscope", "tarot", "psychic", "fortune teller", "تنجيم", "أبراج", "برج", "تاروت", "الفلك"),
+        descriptionKeywords = listOf("astrology", "astrological", "astrologer", "zodiac", "horoscope", "horoscopes", "tarot", "fortune teller", "palmistry", "star sign", "star signs", "birth chart", "تنجيم", "أبراج", "تاروت", "الفلك", "العرافة", "قراءة الطالع")),
+    NotflixGenre("wwe", "WWE", Color(96, 18, 18), Color(38, 8, 8),
+        nameKeywords = listOf("wwe", "wrestling", "wrestlemania", "smackdown", "مصارعة"),
+        descriptionKeywords = listOf("wrestling", "wwe", "مصارعة")),
+    NotflixGenre("improv", "ارتجالي", Color(72, 52, 10), Color(28, 20, 4),
+        nameKeywords = listOf("improv", "improvisation", "stand-up", "stand up", "ارتجالي", "ستاند أب"),
+        // "stand-up comedy/special/performance" only: plain "stand-up" in a
+        // synopsis also matches dramas about a failed stand-up comedian (Joker).
+        descriptionKeywords = listOf("improv", "improvisation", "stand-up comedy", "stand-up special", "stand-up performance", "stand-up show", "stand up comedy", "comedy special", "standup", "ارتجالي")),
+    NotflixGenre("new_worthy", "الجديد والجدير بالمشاهدة", Color(18, 72, 50), Color(8, 30, 21),
+        matchRecent = true,
+        minRating = 6.0f,
+        rowTitleTerms = listOf("new", "latest", "recent", "جديد", "أحدث")),
+    NotflixGenre("crime", "جريمة", Color(20, 30, 50), Color(8, 13, 22),
+        matchTerms = listOf("Crime", "Noir", "جريمة")),
+    NotflixGenre("action", "أكشن", Color(96, 18, 24), Color(38, 7, 9),
         matchTerms = listOf("Action", "أكشن")),
-    NotflixGenre("drama", "دراما", Color(58, 16, 32), Color(24, 7, 13),
+    NotflixGenre("drama", "دراما", Color(72, 20, 40), Color(28, 8, 15),
         matchTerms = listOf("Drama", "دراما")),
-    NotflixGenre("thrilling", "أعمال مشوقة", Color(36, 26, 51), Color(14, 10, 20),
+    NotflixGenre("thrilling", "أعمال مشوقة", Color(44, 32, 64), Color(16, 12, 24),
         matchTerms = listOf("Thriller", "Mystery", "Suspense", "إثارة", "تشويق", "غموض"))
 )
 
 private val notflixYearRegex = Regex("(19|20)\\d{2}")
+
+private val notflixKeywordRegexCache = mutableMapOf<String, Regex>()
+private val notflixPatternRegexCache = mutableMapOf<String, Regex>()
+
+/**
+ * Keyword match: Latin-script keywords match whole words only ("teen" must
+ * not match "fifteen"), Arabic keywords match substrings (Arabic morphology
+ * has no usable word boundary).
+ */
+private fun notflixKeywordMatches(text: String, keyword: String): Boolean {
+    if (keyword.isEmpty()) return false
+    if (keyword.all { it.code < 128 }) {
+        val regex = notflixKeywordRegexCache.getOrPut(keyword) {
+            Regex("(?i)(?<![a-z])${Regex.escape(keyword)}(?![a-z])")
+        }
+        return regex.containsMatchIn(text)
+    }
+    return text.contains(keyword, ignoreCase = true)
+}
 
 private fun notflixReleaseYear(item: MetaPreview): Int? {
     val raw = item.released ?: item.releaseInfo ?: return null
@@ -121,9 +187,42 @@ private fun notflixReleaseYear(item: MetaPreview): Int? {
 }
 
 internal fun NotflixGenre.matchesItem(item: MetaPreview): Boolean {
+    // "Worthy": a known low rating fails the genre outright (unrated passes).
+    minRating?.let { floor ->
+        val rating = item.imdbRating
+        if (rating != null && rating < floor) return false
+    }
     if (nameKeywords.isNotEmpty()) {
-        val name = item.name.lowercase()
-        if (nameKeywords.any { name.contains(it.lowercase()) }) return true
+        if (nameKeywords.any { notflixKeywordMatches(item.name, it) }) return true
+    }
+    if (descriptionKeywords.isNotEmpty()) {
+        val desc = item.description.orEmpty()
+        if (desc.isNotEmpty() && descriptionKeywords.any { notflixKeywordMatches(desc, it) }) return true
+    }
+    if (descriptionPatterns.isNotEmpty()) {
+        val desc = item.description.orEmpty()
+        if (desc.isNotEmpty() && descriptionPatterns.any { pattern ->
+            notflixPatternRegexCache.getOrPut(pattern) { Regex(pattern, RegexOption.IGNORE_CASE) }.containsMatchIn(desc)
+        }) return true
+    }
+    if (matchAnime) {
+        // Real anime: Animation + Japan FIRST in the origin countries (or the
+        // word "anime"). "Contains Japan" is useless — nearly every US
+        // animated film lists Japan later (distribution/dubbing); Japanese
+        // productions list Japan first. Genre alone cannot tell anime from
+        // western animation: no catalog tags "Anime".
+        val isAnimation = item.genres.any {
+            it.contains("animation", ignoreCase = true) || it.contains("anime", ignoreCase = true)
+        }
+        if (isAnimation) {
+            val firstCountry = item.country?.split(",")?.firstOrNull()?.trim()
+            val isJapanese = firstCountry?.equals("Japan", ignoreCase = true) == true ||
+                item.country?.equals("JP", ignoreCase = true) == true
+            val saysAnime = item.name.contains("anime", ignoreCase = true) ||
+                item.name.contains("أنيمي") || item.name.contains("أنمي") ||
+                item.description?.contains("anime", ignoreCase = true) == true
+            if (isJapanese || saysAnime) return true
+        }
     }
     if (matchRecent) {
         val year = notflixReleaseYear(item)
@@ -155,55 +254,22 @@ internal fun notflixGenreRow(): NotflixDisplayRow = NotflixDisplayRow(
     wide = true
 )
 
-/**
- * In-place genre filter over the home's display rows. The strip itself stays
- * first; Continue watching, airing and collection rows are dropped while a
- * genre is active; a catalog row whose title names the genre stays whole,
- * otherwise only its matching items survive (and its see-all tile goes, since
- * it would open the unfiltered catalog).
- */
-internal fun notflixFilterRowsByGenre(rows: List<NotflixDisplayRow>, genre: NotflixGenre): List<NotflixDisplayRow> {
-    return buildList {
-        rows.forEach { row ->
-            when {
-                row.key == NOTFLIX_GENRES_ROW_KEY -> add(row)
-                row.key == "cw" -> Unit
-                row.key == NOTFLIX_AIRING_ROW_KEY -> Unit
-                row.key.startsWith("collection_") -> Unit
-                row.folderTarget != null -> Unit
-                else -> {
-                    val titleMatches = row.title.contains(genre.titleAr) ||
-                        (genre.matchTerms + genre.nameKeywords).any { row.title.contains(it, ignoreCase = true) } ||
-                        row.title.contains(genre.tag, ignoreCase = true)
-                    if (titleMatches) add(row)
-                    else {
-                        val kept = row.tiles.filter { tile ->
-                            tile.key != "see-all" && tile.meta?.let { genre.matchesItem(it) } == true
-                        }
-                        if (kept.isNotEmpty()) add(row.copy(tiles = kept, empty = false))
-                    }
-                }
-            }
-        }
-    }
-}
-
 private fun Color.brighten(factor: Float): Color =
     copy(red = (red * factor).coerceAtMost(1f), green = (green * factor).coerceAtMost(1f), blue = (blue * factor).coerceAtMost(1f))
 
 private val genreStripDirections = setOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)
 
 /**
- * One genre tile, Matrix Productions style: landscape, the genre name as the
- * artwork on a dark gradient, animated on focus (scale + brighten + shine
- * sweep) and marked with a red border while its filter is active.
+ * One genre tile: landscape, the Arabic genre name on its own dark
+ * per-genre color, animated on focus (scale + brighten + shine sweep)
+ * and marked with a white border while focused. No pictures on the tiles —
+ * the artwork lives in the content inside.
  */
 @Composable
-internal fun NotflixGenreTile(genre: NotflixGenre, selected: Boolean, modifier: Modifier = Modifier) {
+internal fun NotflixGenreTile(genre: NotflixGenre, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (isFocused) 1.06f else 1f, tween(180), label = "genreScale")
-    val brighten by animateFloatAsState(
-        if (isFocused) 1.45f else if (selected) 1.2f else 1f, tween(180), label = "genreBrighten")
+    val brighten by animateFloatAsState(if (isFocused) 1.45f else 1f, tween(180), label = "genreBrighten")
     val shineProgress = if (isFocused) {
         val transition = rememberInfiniteTransition(label = "genreShine")
         transition.animateFloat(0f, 1f,
@@ -214,11 +280,7 @@ internal fun NotflixGenreTile(genre: NotflixGenre, selected: Boolean, modifier: 
     val cardSize = LocalNotflixPresentation.current.cardSize
     val top = genre.gradientTop.brighten(brighten)
     val bottom = genre.gradientBottom.brighten(brighten)
-    val borderColor = when {
-        isFocused -> Color.White
-        selected -> Spec.Accent
-        else -> Color.Transparent
-    }
+    val borderColor = if (isFocused) Color.White else Color.Transparent
     BoxWithConstraints(
         modifier
             .size(Spec.wideWidth(cardSize).dp, Spec.wideHeight(cardSize).dp)
@@ -268,7 +330,6 @@ internal fun NotflixGenreStripRow(
     row: NotflixDisplayRow,
     horizontal: LazyListState,
     requesters: MutableMap<String, FocusRequester>,
-    selectedGenre: NotflixGenre?,
     onActualFocus: (String, Boolean) -> Unit,
     onFocused: (Int, NotflixTile) -> Unit,
     onKey: (Int, Key) -> Unit,
@@ -290,7 +351,6 @@ internal fun NotflixGenreStripRow(
                 }
                 NotflixGenreTile(
                     genre = genre,
-                    selected = selectedGenre == genre,
                     modifier = Modifier
                         .focusRequester(requester)
                         .onFocusChanged {

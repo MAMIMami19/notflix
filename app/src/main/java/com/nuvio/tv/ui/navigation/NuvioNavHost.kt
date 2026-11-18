@@ -39,6 +39,7 @@ import com.nuvio.tv.data.mediaserver.ServerCatalog
 import com.nuvio.tv.ui.screens.CatalogSeeAllScreen
 import com.nuvio.tv.ui.screens.ExperienceModeSelectionScreen
 import com.nuvio.tv.ui.screens.LayoutSelectionScreen
+import com.nuvio.tv.ui.screens.NotflixGenreBrowseScreen
 import com.nuvio.tv.ui.screens.calendar.NotflixCalendarScreen
 import com.nuvio.tv.ui.screens.calendar.toCalendarNuvioShow
 import com.nuvio.tv.ui.screens.detail.MetaDetailsScreen
@@ -313,6 +314,9 @@ private fun PlaybackNavHost(
                 },
                 onNavigateToFolderDetail = { collectionId, folderId ->
                     navController.navigate(Screen.FolderDetail.createRoute(collectionId, folderId))
+                },
+                onNavigateToGenreBrowse = { genreTag ->
+                    navController.navigate(Screen.GenreBrowse.createRoute(genreTag))
                 },
                 onNavigateToNotflixIntegrations = {
                     navController.openNotflixIntegrations()
@@ -1555,6 +1559,37 @@ private fun PlaybackNavHost(
                 },
                 onNavigateToPlay = { itemId, itemType, addonBaseUrl, manual ->
                     // M63: mismo camino de reproducción que el botón Reproducir del Inicio.
+                    navController.navigate(
+                        com.nuvio.tv.ui.screens.home.notflixBillboardPlayRoute(itemId, itemType, addonBaseUrl, manual)
+                    ) { launchSingleTop = true }
+                },
+                onBackPress = { navController.popBackStack() }
+            )
+        }
+
+        // Restyle 2: the dedicated genre browse screen. Shares the Home
+        // ViewModel (same fullCatalogRows the home already shows).
+        composable(
+            route = Screen.GenreBrowse.route,
+            arguments = listOf(navArgument("genreTag") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val genreTag = backStackEntry.arguments?.getString("genreTag") ?: ""
+            val homeBackStackEntry = androidx.compose.runtime.remember {
+                try { navController.getBackStackEntry(Screen.Home.route) } catch (_: Exception) { null }
+            }
+            val homeViewModel: com.nuvio.tv.ui.screens.home.HomeViewModel =
+                if (homeBackStackEntry != null) {
+                    androidx.hilt.navigation.compose.hiltViewModel(homeBackStackEntry)
+                } else {
+                    androidx.hilt.navigation.compose.hiltViewModel(backStackEntry)
+                }
+            NotflixGenreBrowseScreen(
+                genreTag = genreTag,
+                viewModel = homeViewModel,
+                onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
+                    navController.navigate(Screen.Detail.createRoute(itemId, itemType, addonBaseUrl))
+                },
+                onNavigateToPlay = { itemId, itemType, addonBaseUrl, manual ->
                     navController.navigate(
                         com.nuvio.tv.ui.screens.home.notflixBillboardPlayRoute(itemId, itemType, addonBaseUrl, manual)
                     ) { launchSingleTop = true }

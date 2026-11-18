@@ -172,6 +172,12 @@ sealed class Screen(val route: String) {
         }
     }
 
+    // Restyle 2: the dedicated genre browse screen. Tags are [a-z_] ASCII, so
+    // no encoding is needed.
+    data object GenreBrowse : Screen("notflix_genre/{genreTag}") {
+        fun createRoute(genreTag: String): String = "notflix_genre/$genreTag"
+    }
+
     data object Collections : Screen("collections")
 
     data object CollectionEditor : Screen("collection_editor?collectionId={collectionId}") {
