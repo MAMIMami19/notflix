@@ -110,8 +110,7 @@ internal fun notflixNetflixTitleForCatalog(name: String): String? {
 internal fun mergeNotflixThemeRows(rows: List<NotflixCatalogRow>, previousAliases: Map<String, String>): Pair<List<NotflixCatalogRow>, Map<String, String>> {
     val themeOf: (NotflixCatalogRow) -> String? = { row ->
         if (row.collection != null || row.folderTarget != null) null
-        else {
-            val catalog = row.catalog ?: return@themeOf null
+        else row.catalog?.let { catalog ->
             val tokens = catalog.catalogName.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
             val theme = when {
                 "trending" in tokens -> "trending"
