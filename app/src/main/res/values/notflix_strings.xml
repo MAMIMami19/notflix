@@ -24,6 +24,7 @@
     <string name="notflix_episode">S%1$s · E%2$s</string>
     <string name="notflix_loading_catalogs">Loading catalogs…</string>
     <string name="notflix_no_content">No content available</string>
+    <string name="notflix_genre_empty">No results for «%1$s» — try another genre</string>
     <string name="notflix_age_empty">No titles are available for this profile.</string>
     <string name="notflix_age_empty_no_tmdb">Age filtering needs the TMDB key (Settings &gt; Integrations).</string>
     <string name="notflix_auth_qr_tagline">Sign in to sync your library and your progress across all your screens.</string>

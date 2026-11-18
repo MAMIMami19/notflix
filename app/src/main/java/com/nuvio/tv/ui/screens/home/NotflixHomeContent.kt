@@ -135,6 +135,12 @@ internal fun notflixRows(state: HomeUiState, keepPendingCw: Boolean, cwTitle: St
     airingNow: java.time.Instant = java.time.Instant.now(),
     airingZone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<NotflixDisplayRow> = buildList {
     if (notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) return@buildList
+    // Restyle: the genre strip sits first (row 0), above Continue watching —
+    // but only once there is content to filter, so an empty home still shows
+    // its loading/empty state instead of a strip that leads nowhere.
+    if (state.notflixCatalog.rows.isNotEmpty() || state.continueWatchingItems.isNotEmpty()) {
+        add(notflixGenreRow())
+    }
     val hiddenKeys = state.hiddenTitleKeys
     val alertByContentId = state.continueWatchingItems.asSequence()
         .filterIsInstance<ContinueWatchingItem.NextUp>()
@@ -306,6 +312,13 @@ fun NotflixHomeContent(
         notflixRows(presentation, keepPendingCw, cwTitle, episodePattern, seeAll, myListRow, becauseRow,
             airingTitle, airingCaption)
     }
+    // Restyle: the active genre filter (null = unfiltered). The strip row stays
+    // first while filtered; displayRows is what the home renders and navigates.
+    var selectedGenre by remember { mutableStateOf<NotflixGenre?>(null) }
+    val displayRows = remember(rows, selectedGenre) {
+        val genre = selectedGenre
+        if (genre == null) rows else notflixFilterRowsByGenre(rows, genre)
+    }
     val heroes = if (state.heroSectionEnabled && !notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) {
         val source = presentation.notflixCatalog.heroItems
         val ageAllowed = if (state.ageLimit == null) source else source.filter { state.allowsForAge(it) }
@@ -333,9 +346,9 @@ fun NotflixHomeContent(
     }
     val column = rememberLazyListState(memory.columnIndex, memory.columnOffset)
     val visibleLoadKeys = remember { mutableSetOf<String>() }
-    LaunchedEffect(column, rows, presentation.notflixCatalog, state.hideUnreleasedContent) {
+    LaunchedEffect(column, displayRows, presentation.notflixCatalog, state.hideUnreleasedContent) {
         snapshotFlow { column.layoutInfo.visibleItemsInfo.map { it.key }.toSet() }.distinctUntilChanged().collect { visible ->
-            val keys = rows.filter { it.key in visible }.map { it.loadKey }.toSet()
+            val keys = displayRows.filter { it.key in visible }.map { it.loadKey }.toSet()
             (visibleLoadKeys - keys).forEach(onHiddenRow)
             visibleLoadKeys.clear(); visibleLoadKeys.addAll(keys)
             keys.forEach(onVisibleRow)
@@ -351,7 +364,7 @@ fun NotflixHomeContent(
     val kidsIntegrationsRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val moves = remember { NotflixFocusMoves() }
-    val latestRows by rememberUpdatedState(rows)
+    val latestRows by rememberUpdatedState(displayRows)
     val latestEnriched by rememberUpdatedState(enriched)
     val latestOnFocusedMeta by rememberUpdatedState(onFocusedMeta)
     val latestConfigured by rememberUpdatedState(state.notflixCatalog.configured)
@@ -536,7 +549,7 @@ fun NotflixHomeContent(
                 (if (onPlay != null && memory.editorialAction == "play") heroPlayRequester else heroRequester).requestFocus()
             }
             else {
-                val first = rows.indexOfFirst { it.tiles.isNotEmpty() || it.phase != NotflixRowPhase.READY }
+                val first = displayRows.indexOfFirst { it.tiles.isNotEmpty() || it.phase != NotflixRowPhase.READY }
                 if (first >= 0) request(first, 0)
                 else if (notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) {
                     moves.expected = "kids-integrations|kids-integrations"
@@ -552,12 +565,12 @@ fun NotflixHomeContent(
     fun restore(fromTop: Boolean = false): Boolean {
         val original = memory.focus
         val replacement = original?.rowKey?.let { presentation.notflixCatalog.focusAliases[it] }
-        val saved = if (original != null && rows.none { it.key == original.rowKey } && rows.any { it.key == replacement })
+        val saved = if (original != null && displayRows.none { it.key == original.rowKey } && displayRows.any { it.key == replacement })
             original.copy(rowKey = requireNotNull(replacement)) else original
         if (saved != original) memory.focus = saved
         if (saved?.rowKey == "hero" && hero != null) { focusHeroOrFirst(); return true }
         else if (saved != null) {
-            when (val result = resolveNotflixFocus(saved, rows.map { row ->
+            when (val result = resolveNotflixFocus(saved, displayRows.map { row ->
                 NotflixFocusRow(row.key, row.phase, row.tiles.map { NotflixFocusItem(it.key, it.canonical) })
             }, state.notflixCatalog.configured)) {
                 is NotflixFocusResolution.Item -> request(result.row, result.index)
@@ -598,7 +611,7 @@ fun NotflixHomeContent(
     SideEffect { navigation.homeDown = { restore(true) } }
     // M32: `moving` only gates the reconciliation below. Reading it as an effect key restarted this
     // body and recomposed Home on every move start/end; observe it inside the coroutine instead.
-    LaunchedEffect(rows, hero?.id, state.notflixCatalog.configured) {
+    LaunchedEffect(displayRows, hero?.id, state.notflixCatalog.configured) {
         snapshotFlow { moving }.collectLatest { isMoving ->
             if (!initialPlacement && state.notflixCatalog.configured && !navigation.topFocused && !navigation.interacted) {
                 if (freshBillboardEntry && hero != null && previewSession?.binding != null && !reducedHome) {
@@ -616,13 +629,13 @@ fun NotflixHomeContent(
                 val saved = memory.focus
                 // The empty-state actions (Retry, KIDS Integrations) are not rows: never bounce them to the top bar.
                 val emptyAction = saved?.rowKey in NOTFLIX_EMPTY_ACTION_KEYS
-                if (emptyAction && rows.any { it.tiles.isNotEmpty() }) focusHeroOrFirst()
-                else if (saved != null && saved.rowKey != "hero" && !emptyAction && rows.none { row ->
+                if (emptyAction && displayRows.any { it.tiles.isNotEmpty() }) focusHeroOrFirst()
+                else if (saved != null && saved.rowKey != "hero" && !emptyAction && displayRows.none { row ->
                         row.key == saved.rowKey && row.tiles.any { it.key == saved.itemKey }
                     }) restore()
                 else if (saved != null && saved.rowKey != "hero" && !emptyAction) {
-                    val rowIndex = rows.indexOfFirst { it.key == saved.rowKey }
-                    val index = rows.getOrNull(rowIndex)?.tiles?.indexOfFirst { it.key == saved.itemKey } ?: -1
+                    val rowIndex = displayRows.indexOfFirst { it.key == saved.rowKey }
+                    val index = displayRows.getOrNull(rowIndex)?.tiles?.indexOfFirst { it.key == saved.itemKey } ?: -1
                     if (index >= 0 && (saved.index != index || saved.rowIndex != rowIndex)) {
                         val updated = saved.copy(index = index, rowIndex = rowIndex)
                         memory.focus = updated; focused = updated
@@ -699,10 +712,12 @@ fun NotflixHomeContent(
         // M32: one handler reads the action cursor at event time; the second handler's enabled flag
         // was a composition read. Back inside the panel still returns to the card itself.
         if (cardCursor != null) { cardCursor = null; return@BackHandler }
+        // Restyle: BACK with a genre filter active clears the filter first.
+        if (selectedGenre != null) { selectedGenre = null; return@BackHandler }
         previewSession?.cancel()
         val saved = memory.focus
         if (saved != null && saved.rowKey != "hero" && saved.index > 0) {
-            val index = rows.indexOfFirst { it.key == saved.rowKey }
+            val index = displayRows.indexOfFirst { it.key == saved.rowKey }
             if (index >= 0) request(index, 0) else navigation.focusTop()
         } else navigation.focusTop()
     }
@@ -710,6 +725,31 @@ fun NotflixHomeContent(
     val noAutomaticScroll = remember { object : BringIntoViewSpec {
         override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float) = 0f
     } }
+    // Restyle: one row's direction keys, shared by the catalog rows and the
+    // genre strip (hoisted out of the row call so both can use it).
+    val rowOnKey: (Int, NotflixDisplayRow, Int, Key) -> Unit = { rowIndex, row, index, key ->
+        navigation.interacted = true
+        previewSession?.cancel()
+        when (key) {
+            Key.DirectionRight, Key.DirectionLeft -> {
+                val step = if ((key == Key.DirectionRight) != rtl) 1 else -1
+                // Several repeat/down events can arrive before the focus job
+                // completes. Advance from its pending target, not the old node.
+                val pending = moves.expected?.let { expected -> row.tiles.indexOfFirst { "${row.key}|${it.key}" == expected } }
+                    ?.takeIf { it >= 0 } ?: index
+                request(rowIndex, (pending + step).coerceIn(0, row.tiles.lastIndex.coerceAtLeast(0)))
+            }
+            Key.DirectionUp -> {
+                val previous = (rowIndex - 1 downTo 0).firstOrNull { displayRows[it].tiles.isNotEmpty() || displayRows[it].phase != NotflixRowPhase.READY }
+                if (previous == null) { if (hero != null) focusHeroOrFirst() else navigation.focusTop() }
+                else request(previous, index)
+            }
+            Key.DirectionDown -> (rowIndex + 1 until displayRows.size)
+                .firstOrNull { displayRows[it].tiles.isNotEmpty() || displayRows[it].phase != NotflixRowPhase.READY }
+                ?.let { request(it, index) }
+            else -> Unit
+        }
+    }
     Box(Modifier.fillMaxSize()) {
     CompositionLocalProvider(LocalBringIntoViewSpec provides noAutomaticScroll) {
         LazyColumn(
@@ -756,7 +796,7 @@ fun NotflixHomeContent(
                             onKey = { action, key ->
                                 when (key) {
                                     Key.DirectionUp -> navigation.focusTop()
-                                    Key.DirectionDown -> rows.indexOfFirst { it.tiles.isNotEmpty() || it.phase != NotflixRowPhase.READY }
+                                    Key.DirectionDown -> displayRows.indexOfFirst { it.tiles.isNotEmpty() || it.phase != NotflixRowPhase.READY }
                                         .takeIf { it >= 0 }?.let { request(it, 0) }
                                     Key.DirectionLeft, Key.DirectionRight -> {
                                         val step = if ((key == Key.DirectionRight) != rtl) 1 else -1
@@ -773,8 +813,23 @@ fun NotflixHomeContent(
                     } else Spacer(Modifier.height((Spec.NAV_HEIGHT + 12).dp))
                 }
             }
-            itemsIndexed(rows, key = { _, row -> row.key }) { rowIndex, row ->
-                if (row.tiles.isNotEmpty() || row.phase != NotflixRowPhase.READY) {
+            itemsIndexed(displayRows, key = { _, row -> row.key }) { rowIndex, row ->
+                if (row.key == NOTFLIX_GENRES_ROW_KEY) {
+                    val savedScroll = memory.rowScroll[row.key]
+                    val horizontal = rememberLazyListState(savedScroll?.first ?: 0, savedScroll?.second ?: 0)
+                    DisposableEffect(row.key, horizontal) {
+                        rowStates[row.key] = horizontal
+                        onDispose {
+                            memory.rowScroll[row.key] = horizontal.firstVisibleItemIndex to horizontal.firstVisibleItemScrollOffset
+                            rowStates.remove(row.key)
+                        }
+                    }
+                    NotflixGenreStripRow(row, horizontal, requesters, selectedGenre,
+                        onActualFocus = ::recordActualFocus,
+                        onFocused = { index, tile -> recordTile(rowIndex, row, index, tile) },
+                        onKey = { index, key -> rowOnKey(rowIndex, row, index, key) },
+                        onGenreClick = { genre -> selectedGenre = if (selectedGenre == genre) null else genre })
+                } else if (row.tiles.isNotEmpty() || row.phase != NotflixRowPhase.READY) {
                     val savedScroll = memory.rowScroll[row.key]
                     val horizontal = rememberLazyListState(savedScroll?.first ?: 0, savedScroll?.second ?: 0)
                     DisposableEffect(row.key, horizontal) {
@@ -832,29 +887,7 @@ fun NotflixHomeContent(
                         onFocused = tileFocus@ { index, tile ->
                             recordTile(rowIndex, row, index, tile)
                         },
-                        onKey = { index, key ->
-                            navigation.interacted = true
-                            previewSession?.cancel()
-                            when (key) {
-                                Key.DirectionRight, Key.DirectionLeft -> {
-                                    val step = if ((key == Key.DirectionRight) != rtl) 1 else -1
-                                    // Several repeat/down events can arrive before the focus job
-                                    // completes. Advance from its pending target, not the old node.
-                                    val pending = moves.expected?.let { expected -> row.tiles.indexOfFirst { "${row.key}|${it.key}" == expected } }
-                                        ?.takeIf { it >= 0 } ?: index
-                                    request(rowIndex, (pending + step).coerceIn(0, row.tiles.lastIndex.coerceAtLeast(0)))
-                                }
-                                Key.DirectionUp -> {
-                                    val previous = (rowIndex - 1 downTo 0).firstOrNull { rows[it].tiles.isNotEmpty() || rows[it].phase != NotflixRowPhase.READY }
-                                    if (previous == null) { if (hero != null) focusHeroOrFirst() else navigation.focusTop() }
-                                    else request(previous, index)
-                                }
-                                Key.DirectionDown -> (rowIndex + 1 until rows.size)
-                                    .firstOrNull { rows[it].tiles.isNotEmpty() || rows[it].phase != NotflixRowPhase.READY }
-                                    ?.let { request(it, index) }
-                                else -> Unit
-                            }
-                        }, onClick = { tile ->
+                        onKey = { index, key -> rowOnKey(rowIndex, row, index, key) }, onClick = { tile ->
                             previewSession?.cancel()
                             cancelMoves()
                             moves.expected = "${row.key}|${tile.key}"
@@ -880,7 +913,14 @@ fun NotflixHomeContent(
                         }, onRetry = { row.folderTarget?.let { onFolder(it.first, it.second) } ?: onRetry() })
                 }
             }
-            if (rows.none { it.tiles.isNotEmpty() } && rows.none { it.phase == NotflixRowPhase.PENDING }) {
+            if (selectedGenre != null && displayRows.size <= 1) {
+                item("genre-empty") {
+                    Text(stringResource(R.string.notflix_genre_empty, selectedGenre?.titleAr.orEmpty()),
+                        color = Spec.Secondary, fontSize = 18.sp,
+                        modifier = Modifier.padding(horizontal = Spec.GUTTER.dp, vertical = 36.dp))
+                }
+            }
+            if (displayRows.none { it.tiles.isNotEmpty() } && displayRows.none { it.phase == NotflixRowPhase.PENDING }) {
                 item("empty") {
                     Column(Modifier.padding(horizontal = Spec.GUTTER.dp, vertical = 36.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         val kidsNeedsKey = notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)

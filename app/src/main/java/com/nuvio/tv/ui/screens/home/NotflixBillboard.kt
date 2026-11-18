@@ -130,10 +130,11 @@ internal fun NotflixBillboard(
                 }.testTag("notflix-editorial-art"), contentScale = ContentScale.Crop, alignment = BiasAlignment(0f, -.6f))
             }
         }
-        // Perf: each scrim only covers the band where it is not transparent (same look, less fill rate).
-        Box(Modifier.fillMaxHeight().fillMaxWidth(.75f).background(Brush.horizontalGradient(
-            0f to Spec.Background.copy(.92f), .28f / .75f to Spec.Background.copy(.60f),
-            .58f / .75f to Spec.Background.copy(.08f), 1f to Color.Transparent)))
+        // Restyle: full-width scrim — the 75% band left a hard bright edge.
+        // Same stop shape in absolute fractions, so the left 75% looks identical.
+        Box(Modifier.fillMaxHeight().fillMaxWidth().background(Brush.horizontalGradient(
+            0f to Spec.Background.copy(.92f), .28f to Spec.Background.copy(.60f),
+            .58f to Spec.Background.copy(.08f), 1f to Color.Transparent)))
         // The top darkening comes from the Notflix bar gradient that already sits over this band.
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().fillMaxHeight(.42f).background(Brush.verticalGradient(
             0f to Color.Transparent, (.86f - .58f) / .42f to Spec.Background.copy(.75f), 1f to Spec.Background)))

@@ -1,0 +1,83 @@
+name: Build Notflix Restyle 1
+
+# Notflix restyle 1 (1.0.0-beta.4.1-restyle1, vc 1077, com.notflix.tv.custom):
+# a side-by-side custom build that installs ALONGSIDE upstream Notflix.
+# - Genre strip on the home (row 0): 21 Matrix-Productions-style landscape
+#   tiles with the user's genre names, animated on focus; tapping one filters
+#   the home rows in place (tap again or BACK clears).
+# - Netflix-style home: same-theme catalog rows from different addons merge
+#   into one row, and stock theme rows get Netflix-style Arabic titles.
+# - Hero scrim spans the full width (was a 75% band with a hard edge).
+# - New package (com.notflix.tv.custom) + new signing key + label
+#   "NotFlix Custom"; the appearance gate covers the new package id.
+# Films-and-series-only: no live TV, no audio changes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [notflix-restyle-1]
+
+# Serialize runs: two concurrent full-release builds died together when the
+# runner pool cancelled them (Matrix runs 43618067580/43618374036); queue instead.
+concurrency:
+  group: notflix-restyle-1-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Write local.properties (backend config + release signing)
+        run: |
+          echo "${{ secrets.NUVIO_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          {
+            echo "NUVIO_SUPABASE_URL=${{ secrets.NUVIO_SUPABASE_URL }}"
+            echo "NUVIO_SUPABASE_ANON_KEY=${{ secrets.NUVIO_SUPABASE_ANON_KEY }}"
+            echo "NUVIO_SUPABASE_FALLBACK_URL=${{ secrets.NUVIO_SUPABASE_FALLBACK_URL }}"
+            echo "NUVIO_RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore"
+            echo "NUVIO_RELEASE_STORE_PASSWORD=${{ secrets.NUVIO_RELEASE_STORE_PASSWORD }}"
+            echo "NUVIO_RELEASE_KEY_ALIAS=${{ secrets.NUVIO_RELEASE_KEY_ALIAS }}"
+            echo "NUVIO_RELEASE_KEY_PASSWORD=${{ secrets.NUVIO_RELEASE_KEY_PASSWORD }}"
+          } > local.properties
+
+      - name: Install Android SDK 36
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build signed Full release APKs
+        run: |
+          chmod +x gradlew
+          # lintVitalAnalyzeFullRelease is skipped: on the 7 GB GitHub
+          # runner it forks a second JVM while the Gradle daemon holds its
+          # heap. --max-workers=2 caps parallel Kotlin/native workers so
+          # peak memory stays well under the runner's limit (same lesson as
+          # the Matrix builds; gradle.properties pins the heap to 4g).
+          ./gradlew :app:assembleFullRelease -x lintVitalAnalyzeFullRelease --max-workers=2 --stacktrace --console=plain
+
+      - name: Upload release APKs to a draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Artifact storage quota is hit (500 MB; usage recalculates only
+          # every 6-12 h), so the APKs go to a DRAFT release instead — drafts
+          # are invisible to the in-app updater (unauthenticated API calls
+          # never see them, and the tag is not a valid version anyway).
+          # Delete the draft after the APKs are verified/downloaded.
+          TAG="notflix-restyle1-draft-${{ github.run_number }}"
+          gh release create "$TAG" \
+            --draft \
+            --title "Notflix Restyle 1 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 1 release APKs (1.0.0-beta.4.1-restyle1, vc 1077, com.notflix.tv.custom): genre strip with 21 animated tiles + in-place filtering, merged rows + Netflix-style Arabic titles, full-width hero scrim. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            app/build/outputs/apk/full/release/*.apk

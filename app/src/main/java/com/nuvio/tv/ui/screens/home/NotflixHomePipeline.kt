@@ -39,12 +39,17 @@ internal fun projectNotflixCatalogs(
         // Match the official display-title convention, including default names and optional type suffix.
         val title = if (base != null && type != null) {
             val name = base.replaceFirstChar { it.uppercase() }
+            // Restyle: Netflix-style Arabic titles for the stock theme rows;
+            // a custom title (or an unmapped name) passes through untouched.
+            val displayName = if (customTitles[row.loadKey].isNullOrBlank()) {
+                notflixNetflixTitleForCatalog(name) ?: name
+            } else name
             val suffix = when (type.lowercase()) {
                 "movie" -> movieLabel.ifBlank { type.replaceFirstChar { it.uppercase() } }
                 "series" -> seriesLabel.ifBlank { type.replaceFirstChar { it.uppercase() } }
                 else -> type.replaceFirstChar { it.uppercase() }
             }
-            if (showTypeSuffix) "$name - $suffix" else name
+            if (showTypeSuffix) "$displayName - $suffix" else displayName
         } else row.title
         row.copy(title = title, catalog = latest ?: row.catalog)
     })
@@ -64,5 +69,80 @@ internal fun projectNotflixCatalogs(
             }
     }
     val (rows, aliases) = suppressReplacedPopular(expanded, captured.focusAliases)
-    return catalog.copy(rows = rows, focusAliases = aliases)
+    val (mergedRows, mergedAliases) = mergeNotflixThemeRows(rows, aliases)
+    return catalog.copy(rows = mergedRows, focusAliases = mergedAliases)
+}
+
+/**
+ * Restyle: Netflix-style Arabic titles for the stock theme rows. Only the
+ * theme word is mapped; a movies/series hint is kept when the catalog name
+ * carries one, so «Trending Movies» and «Trending Series» stay distinct.
+ * Anything unmapped returns null and keeps its original name.
+ */
+internal fun notflixNetflixTitleForCatalog(name: String): String? {
+    val tokens = name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
+    val theme = when {
+        "trending" in tokens -> "الأكثر رواجاً الآن"
+        "popular" in tokens -> "رائج الآن"
+        ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> "الأعلى تقييماً"
+        "featured" in tokens -> "مختارات"
+        "new" in tokens -> "جديد"
+        "watchlist" in tokens -> "قائمة المشاهدة"
+        "calendar" in tokens -> "التقويم"
+        ("last" in tokens && "videos" in tokens) || "recently" in tokens -> "شوهد مؤخراً"
+        else -> return null
+    }
+    val typeHint = when {
+        tokens.intersect(setOf("movie", "movies", "film", "films")).isNotEmpty() -> " · أفلام"
+        tokens.intersect(setOf("series", "tv", "show", "shows")).isNotEmpty() -> " · مسلسلات"
+        else -> ""
+    }
+    return theme + typeHint
+}
+
+/**
+ * Restyle: merge same-theme catalog rows from different addons into one
+ * Netflix-style row (e.g. Trending from Cinemeta + MediaFusion), keeping the
+ * first row's key/title and aliasing the removed keys to it so saved focus
+ * still resolves. Items dedupe by apiType:id; movies and series never mix.
+ * Collection and folder-target rows pass through untouched.
+ */
+internal fun mergeNotflixThemeRows(rows: List<NotflixCatalogRow>, previousAliases: Map<String, String>): Pair<List<NotflixCatalogRow>, Map<String, String>> {
+    val themeOf: (NotflixCatalogRow) -> String? = { row ->
+        if (row.collection != null || row.folderTarget != null) null
+        else {
+            val catalog = row.catalog ?: return@themeOf null
+            val tokens = catalog.catalogName.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
+            val theme = when {
+                "trending" in tokens -> "trending"
+                "popular" in tokens -> "popular"
+                ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> "toprated"
+                "featured" in tokens -> "featured"
+                "new" in tokens -> "new"
+                else -> null
+            }
+            theme?.let { "$it:${catalog.apiType.lowercase()}" }
+        }
+    }
+    val groups = rows.mapNotNull { row -> themeOf(row)?.let { it to row } }
+        .groupBy({ it.first }, { it.second })
+        .filter { it.value.size > 1 }
+    if (groups.isEmpty()) return rows to previousAliases
+    val removed = mutableMapOf<String, String>()
+    val mergedByKey = mutableMapOf<String, NotflixCatalogRow>()
+    groups.forEach { (_, members) ->
+        val kept = members.first()
+        val seen = mutableSetOf<String>()
+        val items = members.flatMap { it.catalog?.items.orEmpty() }
+            .filter { item -> seen.add(notflixMetaKey(item)) }
+        val mergedCatalog = kept.catalog?.copy(items = items)
+        val phase = if (members.any { it.phase == NotflixRowPhase.READY }) NotflixRowPhase.READY else kept.phase
+        mergedByKey[kept.key] = kept.copy(catalog = mergedCatalog, phase = phase)
+        members.drop(1).forEach { removed[it.key] = kept.key }
+    }
+    val visible = rows.filter { it.key !in removed }.map { mergedByKey[it.key] ?: it }
+    val keys = visible.map { it.key }.toSet()
+    val aliases = (previousAliases + removed + removed.entries.associate { it.value to it.key })
+        .filter { (from, to) -> from in keys || to in keys }.entries.toList().takeLast(24).associate { it.toPair() }
+    return visible to aliases
 }

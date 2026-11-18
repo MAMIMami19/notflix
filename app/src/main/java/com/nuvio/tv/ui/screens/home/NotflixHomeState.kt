@@ -81,7 +81,8 @@ fun retainNotflixPresentation(state: HomeUiState, memory: NotflixHomeMemory): Ho
         retainedCatalog.copy(rows = other)
     } else retainedCatalog
     val (derivedRows, aliases) = suppressReplacedPopular(membership.rows, membership.focusAliases)
-    val catalog = membership.copy(rows = derivedRows, focusAliases = aliases)
+    val (mergedRows, mergedAliases) = mergeNotflixThemeRows(derivedRows, aliases)
+    val catalog = membership.copy(rows = mergedRows, focusAliases = mergedAliases)
     val cw = if (previous != null && state.notflixCwPhase != NotflixRowPhase.READY && memory.retainedCw.isNotEmpty())
         memory.retainedCw else state.continueWatchingItems
     return if (catalog == incoming && cw == state.continueWatchingItems) state

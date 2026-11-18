@@ -142,14 +142,14 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        // Notflix: its own package so it installs next to the official Nuvio app instead of over it.
-        applicationId = "com.notflix.tv"
+        // Restyle: its own package so it installs next to upstream Notflix instead of over it.
+        applicationId = "com.notflix.tv.custom"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 36
-        // Above Nuvio's 1071 so lab builds still install over the ones already on the TV.
-        versionCode = 1076
-        versionName = "1.0.0-beta.4.1"
+        // Above upstream's 1076 so the restyle line stays ahead of the base it forked from.
+        versionCode = 1077
+        versionName = "1.0.0-beta.4.1-restyle1"
 
         buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${localProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
         buildConfigField("String", "TRAILER_API_URL", "\"${localProperties.getProperty("TRAILER_API_URL", "")}\"")

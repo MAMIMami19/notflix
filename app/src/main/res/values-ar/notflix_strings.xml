@@ -21,6 +21,7 @@
     <string name="notflix_episode">S%1$s · E%2$s</string>
     <string name="notflix_loading_catalogs">جارٍ تحميل الكتالوجات…</string>
     <string name="notflix_no_content">لا يوجد محتوى متاح</string>
+    <string name="notflix_genre_empty">لا توجد نتائج لـ «%1$s» — جرّب تصنيفاً آخر</string>
     <string name="notflix_age_empty">لا توجد عناوين متاحة لهذا الملف الشخصي.</string>
     <string name="notflix_age_empty_no_tmdb">تصفية العمر تحتاج مفتاح TMDB (الإعدادات &gt; التكاملات).</string>
     <string name="notflix_auth_qr_tagline">سجّل الدخول لمزامنة مكتبتك وتقدّمك على كل شاشاتك.</string>
