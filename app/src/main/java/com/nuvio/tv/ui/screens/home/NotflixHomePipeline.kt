@@ -132,7 +132,21 @@ internal fun projectNotflixCatalogs(
             mergedRows, fullRows, genreTitles, showTypeSuffix, movieLabel, seriesLabel
         )
     } else mergedRows
-    return catalog.copy(rows = finalRows, focusAliases = mergedAliases)
+    // Restyle 3.3: the home is a strict whitelist — the 5 theme pairs, then
+    // the 21 strip genres in tiles order (collections/folders pass through
+    // first, untouched). Every other catalog row (M3U Movies/Series,
+    // English HD Movies/Series, Récemment regardés, Calendrier, …) is
+    // dropped: the same content already shows in the genre rows. Duplicates
+    // of one (genre, type) collapse into a single merged row. Never for the
+    // kids home (M66: its own row group only).
+    if (kidsHome) return catalog.copy(rows = finalRows, focusAliases = mergedAliases)
+    val (whitelistedRows, whitelistAliases) = notflixHomeWhitelist(
+        finalRows, mergedAliases,
+        catalogNameOf = { row -> names[row.loadKey]?.catalogName ?: row.catalog?.catalogName },
+        typeOf = { row -> names[row.loadKey]?.apiType ?: row.catalog?.apiType },
+        genreTitles = genreTitles
+    )
+    return catalog.copy(rows = whitelistedRows, focusAliases = whitelistAliases)
 }
 
 /**
@@ -153,6 +167,167 @@ internal fun notflixFrenchThemeOf(name: String): String? = when (name.trim().low
     "nouveautés" -> "new"
     "sélection" -> "featured"
     else -> null
+}
+
+/** Restyle 3.3: the five stock theme catalogs, in the user's agreed home order. */
+internal val NOTFLIX_HOME_THEME_ORDER = listOf("trending", "popular", "toprated", "new", "featured")
+
+/**
+ * Restyle 3.3: the theme key of a catalog name, shared by the theme merge
+ * and the home whitelist so both classify a row the same way. French exact
+ * names first («Tendances actuelles»…), then the English tokens. Anything
+ * else returns null.
+ */
+internal fun notflixThemeKeyForCatalogName(name: String): String? {
+    notflixFrenchThemeOf(name)?.let { return it }
+    val tokens = name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
+    return when {
+        "trending" in tokens -> "trending"
+        "popular" in tokens -> "popular"
+        ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> "toprated"
+        "featured" in tokens -> "featured"
+        "new" in tokens -> "new"
+        else -> null
+    }
+}
+
+/**
+ * Restyle 3.3: the strip genre a home row belongs to, if any. The catalog
+ * name (from the placeholder descriptor while loading, so present even
+ * for a pending row) must contain the genre's Arabic name — or its
+ * localized name, for a synthetic row in a French UI. Title-only, as in
+ * the synthesis coverage check: مزاج's loose match terms would
+ * false-positive on «دراما». A custom title cannot smuggle a row in: the
+ * match is on the catalog name, never the display title.
+ */
+internal fun notflixGenreTagForCatalogName(
+    catalogName: String?,
+    genreTitles: Map<String, String>?
+): String? {
+    if (catalogName == null) return null
+    return NOTFLIX_GENRES.firstOrNull { genre ->
+        catalogName.contains(genre.titleAr) ||
+            (genreTitles?.get(genre.tag)?.takeIf { it != genre.titleAr }?.let { catalogName.contains(it) } == true)
+    }?.tag
+}
+
+/**
+ * Restyle 3.3: the dedupe/order type of a row. A synthetic row covering
+ * both types (bare genre title, catalog id ends in "-mixed") is "mixed";
+ * "tv" counts as series, as everywhere else.
+ */
+internal fun notflixRowTypeKey(row: NotflixCatalogRow, apiType: String?): String {
+    val catalog = row.catalog
+    if (catalog != null && catalog.addonId == "notflix" && catalog.catalogId.endsWith("-mixed")) return "mixed"
+    return when (val t = apiType?.lowercase()) {
+        "series", "tv" -> "series"
+        "movie" -> "movie"
+        null -> "unknown"
+        else -> t
+    }
+}
+
+private enum class NotflixHomeSlotKind { PASS_THROUGH, THEME, GENRE }
+
+private data class NotflixHomeSlot(
+    val row: NotflixCatalogRow,
+    val kind: NotflixHomeSlotKind,
+    /** Theme key or genre tag; null for pass-through rows. */
+    val key: String?,
+    /** movie / series / mixed / other / unknown. */
+    val type: String
+)
+
+/**
+ * Restyle 3.3: the home whitelist — the user's agreed home, nothing else.
+ * A row survives only as (a) a collection/folder row, passed through first
+ * in its original order (a pinned collection stays pinned), (b) one of the
+ * 5 theme pairs, or (c) a row for one of the 21 strip genres. Every other
+ * catalog row (M3U Movies/Series, English HD Movies/Series, Récemment
+ * regardés, Calendrier, …) is dropped — the same content already shows in
+ * the genre rows. The addons stay installed; only the home rows go.
+ *
+ * Order is canonical, not the addons' order: the 5 theme pairs in the
+ * agreed order (movie before series), then the genre rows in tiles order
+ * (movie, series, mixed). Duplicates of one (kind, key, type) — a catalog
+ * row plus its synthetic twin, or the same genre from two addons — merge
+ * into one row (items deduped by apiType:id), keeping the real catalog
+ * row's key/title so focus stays stable; removed keys alias to the kept
+ * one, like the theme merge.
+ */
+internal fun notflixHomeWhitelist(
+    rows: List<NotflixCatalogRow>,
+    previousAliases: Map<String, String>,
+    catalogNameOf: (NotflixCatalogRow) -> String?,
+    typeOf: (NotflixCatalogRow) -> String?,
+    genreTitles: Map<String, String>?
+): Pair<List<NotflixCatalogRow>, Map<String, String>> {
+    val slots = rows.mapNotNull { row ->
+        when {
+            row.collection != null || row.folderTarget != null ->
+                NotflixHomeSlot(row, NotflixHomeSlotKind.PASS_THROUGH, null, "other")
+            else -> {
+                val catalogName = catalogNameOf(row)
+                val theme = catalogName?.let(::notflixThemeKeyForCatalogName)
+                if (theme != null) {
+                    NotflixHomeSlot(row, NotflixHomeSlotKind.THEME, theme, notflixRowTypeKey(row, typeOf(row)))
+                } else {
+                    val tag = notflixGenreTagForCatalogName(catalogName, genreTitles)
+                    if (tag != null) {
+                        NotflixHomeSlot(row, NotflixHomeSlotKind.GENRE, tag, notflixRowTypeKey(row, typeOf(row)))
+                    } else null // Not on the agreed home: dropped.
+                }
+            }
+        }
+    }
+    // Dedupe: one row per (kind, key, type). Pass-through rows are unique
+    // by key, so they never merge.
+    val removed = mutableMapOf<String, String>()
+    val mergedSlots = slots.groupBy { slot ->
+        when (slot.kind) {
+            NotflixHomeSlotKind.PASS_THROUGH -> "pass:${slot.row.key}"
+            else -> "${slot.kind}:${slot.key}:${slot.type}"
+        }
+    }.values.map { members ->
+        val first = members.first()
+        if (members.size == 1) return@map first
+        // Keep the real catalog row when one exists (stable key across
+        // snapshots); a synthetic twin never wins over it, so see-all
+        // survives the merge.
+        val kept = members.firstOrNull { it.row.catalog?.addonId != "notflix" && it.row.catalog != null }
+            ?.row ?: first.row
+        val seen = mutableSetOf<String>()
+        val items = members.flatMap { it.row.catalog?.items.orEmpty() }
+            .filter { item -> seen.add(notflixMetaKey(item)) }
+        val bestCatalog = members.mapNotNull { it.row.catalog }
+            .sortedWith(compareByDescending<CatalogRow> { it.addonId != "notflix" }.thenByDescending { it.items.size })
+            .firstOrNull()
+        val phase = if (members.any { it.row.phase == NotflixRowPhase.READY }) NotflixRowPhase.READY else kept.phase
+        members.filter { it.row.key != kept.key }.forEach { removed[it.row.key] = kept.key }
+        first.copy(row = kept.copy(catalog = bestCatalog?.copy(items = items), phase = phase))
+    }
+    val themeOrder = NOTFLIX_HOME_THEME_ORDER.withIndex().associate { it.value to it.index }
+    val genreOrder = NOTFLIX_GENRES.withIndex().associate { it.value.tag to it.index }
+    val typeOrder = mapOf("movie" to 0, "series" to 1, "mixed" to 2)
+    val ordered = mergedSlots.sortedWith(
+        compareBy<NotflixHomeSlot> { slot ->
+            when (slot.kind) {
+                NotflixHomeSlotKind.PASS_THROUGH -> 0
+                NotflixHomeSlotKind.THEME -> 1
+                NotflixHomeSlotKind.GENRE -> 2
+            }
+        }.thenBy { slot ->
+            when (slot.kind) {
+                NotflixHomeSlotKind.THEME -> themeOrder[slot.key] ?: Int.MAX_VALUE
+                NotflixHomeSlotKind.GENRE -> genreOrder[slot.key] ?: Int.MAX_VALUE
+                else -> 0
+            }
+        }.thenBy { typeOrder[it.type] ?: 3 }
+    )
+    val keys = ordered.map { it.row.key }.toSet()
+    val aliases = (previousAliases + removed + removed.entries.associate { it.value to it.key })
+        .filter { (from, to) -> from in keys || to in keys }.entries.toList().takeLast(24).associate { it.toPair() }
+    return ordered.map { it.row } to aliases
 }
 
 /** Minimum titles for a synthesized genre row to be worth showing. */
@@ -200,8 +375,22 @@ internal fun insertNotflixSyntheticGenreRows(
     movieLabel: String,
     seriesLabel: String
 ): List<NotflixCatalogRow> {
+    // Restyle 3.3: a PENDING row covers its genre too. Only 4 catalogs load
+    // eagerly; the rest are lazy placeholders with catalog == null — the
+    // 3.2 check (catalog name only) missed them, so a synthetic row was
+    // created next to the placeholder and the genre showed TWICE on device
+    // (دراما / أعمال مشوقة, 3.2 dumps r32-d12…d15). The display title is
+    // already computed from the placeholder descriptor, so it names the
+    // genre even before the catalog loads. The localized title covers a
+    // French-UI row the same way. Title-only, as before: مزاج's loose
+    // match terms would false-positive on «دراما».
     val coveredTags = NOTFLIX_GENRES.filter { genre ->
-        rows.any { row -> notflixGenreOwnRow(genre, row.catalog?.catalogName.orEmpty()) }
+        val localized = genreTitles[genre.tag]
+        rows.any { row ->
+            notflixGenreOwnRow(genre, row.catalog?.catalogName.orEmpty()) ||
+                notflixGenreOwnRow(genre, row.title) ||
+                (localized != null && localized != genre.titleAr && row.title.contains(localized))
+        }
     }.map { it.tag }.toSet()
     val missing = NOTFLIX_GENRES.filter { it.tag !in coveredTags }
     if (missing.isEmpty()) return rows
@@ -348,19 +537,7 @@ internal fun mergeNotflixThemeRows(rows: List<NotflixCatalogRow>, previousAliase
     val themeOf: (NotflixCatalogRow) -> String? = { row ->
         if (row.collection != null || row.folderTarget != null) null
         else row.catalog?.let { catalog ->
-            // Restyle 3.2: French theme names merge like their English twins.
-            val frenchTheme = notflixFrenchThemeOf(catalog.catalogName)
-            if (frenchTheme != null) return@let "$frenchTheme:${catalog.apiType.lowercase()}"
-            val tokens = catalog.catalogName.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
-            val theme = when {
-                "trending" in tokens -> "trending"
-                "popular" in tokens -> "popular"
-                ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> "toprated"
-                "featured" in tokens -> "featured"
-                "new" in tokens -> "new"
-                else -> null
-            }
-            theme?.let { "$it:${catalog.apiType.lowercase()}" }
+            notflixThemeKeyForCatalogName(catalog.catalogName)?.let { "$it:${catalog.apiType.lowercase()}" }
         }
     }
     val groups = rows.mapNotNull { row -> themeOf(row)?.let { it to row } }

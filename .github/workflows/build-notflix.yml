@@ -1,5 +1,12 @@
-name: Build Notflix Restyle 3.2
+name: Build Notflix Restyle 3.3
 
+# Notflix restyle 3.3 (1.0.0-beta.4.1-restyle3.3, vc 1082, com.notflix.tv.custom):
+# the home is a strict whitelist in the agreed order (hero, Continue
+# watching, genre tiles, My List, the 5 theme pairs, the 21 genre rows in
+# tiles order, airing last when non-empty) — unlisted addon rows (M3U,
+# English HD, Récemment regardés, Calendrier) leave the home; duplicate
+# (genre, type) rows merge; a pending row covers its genre (no synthetic
+# twin); «لأنك شاهدت» never renders.
 # Notflix restyle 3.2 (1.0.0-beta.4.1-restyle3.2, vc 1081, com.notflix.tv.custom):
 # Live TV row removed from home; row type labels in app locale (retry of the
 # 3.1 fix — the 3.1 fix was in the wrong place); catalog names in app locale
@@ -94,9 +101,9 @@ jobs:
           # are invisible to the in-app updater (unauthenticated API calls
           # never see them, and the tag is not a valid version anyway).
           # Delete the draft after the APKs are verified/downloaded.
-          TAG="notflix-restyle3.2-draft-${{ github.run_number }}"
+          TAG="notflix-restyle3.3-draft-${{ github.run_number }}"
           gh release create "$TAG" \
             --draft \
-            --title "Notflix Restyle 3.2 draft (CI run ${{ github.run_number }})" \
-            --notes "CI-built Notflix Restyle 3.2 release APKs (1.0.0-beta.4.1-restyle3.2, vc 1081, com.notflix.tv.custom): Live TV row removed, app-locale row labels, app-locale catalog names, tab hero backdrops, rows for the 7 missing genres, fuller Movies/Series tabs, expanded My Space cards, vertical search categories, no black flash, simplified «الجديد» tab. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            --title "Notflix Restyle 3.3 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 3.3 release APKs (1.0.0-beta.4.1-restyle3.3, vc 1082, com.notflix.tv.custom): strict home whitelist in the agreed order, unlisted addon rows removed from home, (genre, type) dedupe, pending-row genre coverage, airing last, «لأنك شاهدت» removed. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk

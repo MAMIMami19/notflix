@@ -173,31 +173,14 @@ internal fun notflixRows(state: HomeUiState, keepPendingCw: Boolean, cwTitle: St
     // Restyle 3: the genre strip goes right after Continue watching (or
     // first when there is no CW row — e.g. CW disabled or empty).
     if (showGenres) add(notflixGenreRow(genresTitle))
-    if (airing.isNotEmpty() && NOTFLIX_AIRING_ROW_KEY !in state.disabledHomeCatalogKeys) {
-        add(NotflixDisplayRow(
-            key = NOTFLIX_AIRING_ROW_KEY,
-            loadKey = NOTFLIX_AIRING_ROW_KEY,
-            title = airingTitle,
-            phase = NotflixRowPhase.READY,
-            tiles = airing.map { (entry, meta) ->
-                NotflixTile(
-                    key = "airing:${entry.info.contentType}:${entry.info.contentId}",
-                    canonical = notflixMetaKey(meta),
-                    title = meta.name,
-                    poster = meta.poster,
-                    backdrop = meta.background ?: meta.landscapePoster,
-                    meta = meta,
-                    caption = airingCaption(entry)
-                )
-            }
-        ))
-    }
-    // Personal rows (M28): My list right after Continue watching, Because after the first catalogue row.
+    // Restyle 3.3: يُعرض قريبًا (airing) goes LAST on the home, after all
+    // catalog rows — its block was moved below the catalog loop. And
+    // «لأنك شاهدت» (becauseRow) is excluded by the user's order: the
+    // parameter stays for API compatibility but is never rendered.
     val catalogRows = state.notflixCatalog.rows
     val ordered = buildList {
         myListRow?.let(::add)
-        catalogRows.forEachIndexed { index, row -> add(row); if (index == 0) becauseRow?.let(::add) }
-        if (catalogRows.isEmpty()) becauseRow?.let(::add)
+        addAll(catalogRows)
     }
     ordered.forEach { row ->
         val tiles = if (row.collection != null) row.collection.folders.map { folder ->
@@ -250,6 +233,26 @@ internal fun notflixRows(state: HomeUiState, keepPendingCw: Boolean, cwTitle: St
                     state.allowsForAge(it) && !it.isHiddenTitle(hiddenKeys)
                 }
             } == true && row.phase == NotflixRowPhase.READY))
+    }
+    // Restyle 3.3: يُعرض قريبًا renders LAST, only when it has content.
+    if (airing.isNotEmpty() && NOTFLIX_AIRING_ROW_KEY !in state.disabledHomeCatalogKeys) {
+        add(NotflixDisplayRow(
+            key = NOTFLIX_AIRING_ROW_KEY,
+            loadKey = NOTFLIX_AIRING_ROW_KEY,
+            title = airingTitle,
+            phase = NotflixRowPhase.READY,
+            tiles = airing.map { (entry, meta) ->
+                NotflixTile(
+                    key = "airing:${entry.info.contentType}:${entry.info.contentId}",
+                    canonical = notflixMetaKey(meta),
+                    title = meta.name,
+                    poster = meta.poster,
+                    backdrop = meta.background ?: meta.landscapePoster,
+                    meta = meta,
+                    caption = airingCaption(entry)
+                )
+            }
+        ))
     }
 }
 

@@ -95,21 +95,26 @@ class NotflixRestyle32Test {
 
     // ---- Item 1: Channel rows never render on home ----
 
-    @Test fun projectFiltersChannelRowsButKeepsMoviesAndSeries() {
+    @Test fun projectFiltersChannelRowsAndUnlistedAddonRows() {
         val live = catalog(name = "Live TV", type = ContentType.CHANNEL, items = listOf(item("c1", ContentType.CHANNEL)))
         val movies = catalog(name = "M3U Movies", type = ContentType.MOVIE, items = listOf(item("m1")))
         val series = catalog(name = "M3U Series", type = ContentType.SERIES, items = listOf(item("s1", ContentType.SERIES)))
-        val rows = listOf(live, movies, series).map(::rowFor)
+        // Restyle 3.3: unlisted addon rows leave the home (their addons stay
+        // installed); a whitelisted genre row survives. Distinct addon for
+        // the drama row: same-type catalogs from one addon share a legacy key.
+        val drama = catalog(addon = "b", name = "دراما", type = ContentType.MOVIE, items = listOf(item("d1")))
+        val rows = listOf(live, movies, series, drama).map(::rowFor)
         val result = projectNotflixCatalogs(
             NotflixCatalogSnapshot(1, 1L, true, rows),
-            rows.map { it.loadKey }, listOf(live, movies, series), emptyList(), emptySet(),
+            rows.map { it.loadKey }, listOf(live, movies, series, drama), emptyList(), emptySet(),
             emptyMap(), rows.map(::descriptor), showTypeSuffix = true,
             movieLabel = "فيلم", seriesLabel = "مسلسل"
         )
         val titles = result.rows.map { it.title }
         assertFalse(titles.any { it.contains("Live TV") })
-        assertTrue(titles.any { it.contains("M3U Movies") })
-        assertTrue(titles.any { it.contains("M3U Series") })
+        assertFalse(titles.any { it.contains("M3U Movies") })
+        assertFalse(titles.any { it.contains("M3U Series") })
+        assertTrue(titles.any { it.contains("دراما") })
     }
 
     @Test fun channelPlaceholderWithoutPayloadIsFilteredToo() {
