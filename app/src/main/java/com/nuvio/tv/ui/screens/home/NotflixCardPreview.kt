@@ -212,8 +212,15 @@ internal fun rememberNotflixPreviewSession(
         }
     }
     val startupReady = !LocalStartupSplashEnabled.current || LocalStartupLoadingState.current?.complete == true
+    // Restyle 2: Notflix focus-preview trailers are ALWAYS audible, in every
+    // profile. The sound preference is per-profile and a stored `false` in
+    // any profile would survive a default change — so the preview ignores
+    // the preference entirely instead of reading it. The per-card mute
+    // toggle still works: it layers an ephemeral per-visit override on top
+    // of the lease (see NotflixPreviewCoordinator.audible). Fullscreen-player
+    // audio is untouched (this environment is preview-only).
     val environment = PreviewEnvironment(binding,
-        enabled = appearance.previewEnabled, sound = appearance.previewSoundEnabled,
+        enabled = appearance.previewEnabled, sound = true,
         valid = presentation.active && appearance.effective == AppAppearance.NOTFLIX && !appearance.readFailed &&
             appearance.previewOptionsValid && binding != null && validContext(binding!!.context) &&
             (!lockContext || binding.context == entryContext),
@@ -228,11 +235,12 @@ internal fun rememberNotflixPreviewSession(
 
 /**
  * Restyle 2: in the Notflix preview path the trailer volume follows the sound
- * preference ONLY. The system gates used to silence every trailer on this
- * box — DND was on (set by the launcher), the ringer check is meaningless on
- * a TV box, and the mute toggle is unreachable in the Notflix look — so a
- * muted-by-default preference plus DND meant permanently silent trailers.
- * Fullscreen-player audio is untouched (this function is preview-only).
+ * choice ONLY — no system gates. DND (set by the launcher on this box) and
+ * the ringer check (meaningless on a TV box) used to silence every trailer,
+ * and the mute toggle is unreachable in the Notflix look. The lease sound
+ * itself is forced audible above, so this only ever silences a trailer the
+ * user muted with the per-card toggle. Fullscreen-player audio is untouched
+ * (this function is preview-only).
  */
 private fun previewSystemMuted(context: Context, sound: Boolean): Boolean = !sound
 

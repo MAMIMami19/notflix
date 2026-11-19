@@ -314,9 +314,15 @@ fun NotflixHomeContent(
         notflixRows(presentation, keepPendingCw, cwTitle, episodePattern, seeAll, myListRow, becauseRow,
             airingTitle, airingCaption)
     }
-    // Restyle 2: no in-place genre filter — OK on a tile opens the genre's
-    // own browse screen, so the home always renders the full rows.
-    val displayRows = rows
+    // Restyle 2: the active genre filter (null = unfiltered). Focus on a
+    // pill sets it — the rows below re-filter live, Netflix-style; OK on a
+    // pill opens the genre's own browse screen instead. The strip row stays
+    // first while filtered; displayRows is what the home renders and navigates.
+    var selectedGenre by remember { mutableStateOf<NotflixGenre?>(null) }
+    val displayRows = remember(rows, selectedGenre) {
+        val genre = selectedGenre
+        if (genre == null) rows else notflixFilterRowsByGenre(rows, genre)
+    }
     val heroes = if (state.heroSectionEnabled && !notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) {
         val source = presentation.notflixCatalog.heroItems
         val ageAllowed = if (state.ageLimit == null) source else source.filter { state.allowsForAge(it) }
@@ -710,6 +716,8 @@ fun NotflixHomeContent(
         // M32: one handler reads the action cursor at event time; the second handler's enabled flag
         // was a composition read. Back inside the panel still returns to the card itself.
         if (cardCursor != null) { cardCursor = null; return@BackHandler }
+        // Restyle 2: BACK with a genre filter active clears the filter first.
+        if (selectedGenre != null) { selectedGenre = null; return@BackHandler }
         previewSession?.cancel()
         val saved = memory.focus
         if (saved != null && saved.rowKey != "hero" && saved.index > 0) {
@@ -820,10 +828,11 @@ fun NotflixHomeContent(
                             rowStates.remove(row.key)
                         }
                     }
-                    NotflixGenreStripRow(row, horizontal, requesters,
+                    NotflixGenreStripRow(row, horizontal, requesters, selectedGenre,
                         onActualFocus = ::recordActualFocus,
                         onFocused = { index, tile -> recordTile(rowIndex, row, index, tile) },
                         onKey = { index, key -> rowOnKey(rowIndex, row, index, key) },
+                        onGenreFocus = { genre -> selectedGenre = genre },
                         onGenreClick = { genre -> onGenreBrowse(genre.tag) })
                 } else if (row.tiles.isNotEmpty() || row.phase != NotflixRowPhase.READY) {
                     val savedScroll = memory.rowScroll[row.key]
@@ -907,6 +916,13 @@ fun NotflixHomeContent(
                             if (tile.cw != null) cwOptions = tile.cw
                             else tile.meta?.let { onLongPress(it, rowCatalogBase(state, row.key).ifBlank { it.sourceAddonBaseUrl.orEmpty() }) }
                         }, onRetry = { row.folderTarget?.let { onFolder(it.first, it.second) } ?: onRetry() })
+                }
+            }
+            if (selectedGenre != null && displayRows.size <= 1) {
+                item("genre-empty") {
+                    Text(stringResource(R.string.notflix_genre_empty, selectedGenre?.titleAr.orEmpty()),
+                        color = Spec.Secondary, fontSize = 18.sp,
+                        modifier = Modifier.padding(horizontal = Spec.GUTTER.dp, vertical = 36.dp))
                 }
             }
             if (displayRows.none { it.tiles.isNotEmpty() } && displayRows.none { it.phase == NotflixRowPhase.PENDING }) {

@@ -6,16 +6,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -28,10 +32,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.nuvio.tv.R
 import com.nuvio.tv.core.ui.rememberNotflixConfirmSound
+import com.nuvio.tv.ui.components.ProfileAvatarCircle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Text
 
-data class NotflixDestination(val route: String, val title: String)
+data class NotflixDestination(val route: String, val title: String, val icon: ImageVector? = null)
+
+/** Restyle 2: the active profile as shown by the top-bar circle. */
+data class NotflixProfileChip(val name: String, val colorHex: String, val avatarImageUrl: String?)
 
 @Composable
 fun rememberNotflixNavigationShell(
@@ -42,7 +50,7 @@ fun rememberNotflixNavigationShell(
     homeRoute: String,
     destinations: List<NotflixDestination>,
     contentFocusRequester: FocusRequester,
-    profileName: String?,
+    profile: NotflixProfileChip?,
     onSwitchProfile: () -> Unit,
     onNavigate: (String) -> Unit,
     onExit: () -> Unit,
@@ -51,7 +59,7 @@ fun rememberNotflixNavigationShell(
     val root = currentRoute in rootRoutes
     SideEffect {
         navigation.selectedRoute = selectedRoute
-        navigation.topOrder = destinations.map { it.route } + (if (profileName != null) listOf("profile") else emptyList())
+        navigation.topOrder = destinations.map { it.route } + (if (profile != null) listOf("profile") else emptyList())
     }
     BackHandler(root) {
         if (longPressBackHeld.value) return@BackHandler
@@ -92,12 +100,12 @@ fun rememberNotflixNavigationShell(
                     destinations.forEach { item ->
                         key(item.route) {
                             TopDestination(item.route, item.title, item.route == selectedRoute, navigation,
-                                contentFocusRequester, currentRoute == homeRoute, { onNavigate(item.route) })
+                                contentFocusRequester, currentRoute == homeRoute, { onNavigate(item.route) }, item.icon)
                         }
                     }
                     Spacer(Modifier.weight(1f))
-                    if (profileName != null) {
-                        TopDestination("profile", profileName, false, navigation, contentFocusRequester,
+                    if (profile != null) {
+                        TopProfileCircle(profile, navigation, contentFocusRequester,
                             currentRoute == homeRoute, onSwitchProfile)
                     }
                 }
@@ -106,10 +114,18 @@ fun rememberNotflixNavigationShell(
     )
 }
 
+/**
+ * Restyle 2, Netflix-style top-bar item. The ACTIVE tab is a white pill with
+ * black text (an icon destination: a white circle with a black icon); a
+ * focused inactive tab gets a white border and no fill change; inactive tabs
+ * are plain text. The old accent underline is gone — the pill is the active
+ * indicator now, like Netflix's own bar.
+ */
 @Composable
 private fun TopDestination(
     route: String, title: String, active: Boolean, navigation: NotflixNavigationState,
-    contentFocusRequester: FocusRequester, isHome: Boolean, onClick: () -> Unit
+    contentFocusRequester: FocusRequester, isHome: Boolean, onClick: () -> Unit,
+    icon: ImageVector? = null
 ) {
     val requester = remember { FocusRequester() }
     val confirmSound = rememberNotflixConfirmSound()
@@ -119,8 +135,9 @@ private fun TopDestination(
         navigation.topRequesters[route] = requester
         onDispose { navigation.topRequesters.remove(route) }
     }
-    Column(
-        Modifier.widthIn(max = if (route == "profile") 120.dp else 150.dp).focusRequester(requester).onFocusChanged {
+    val shape = if (icon != null) CircleShape else RoundedCornerShape(16.dp)
+    Box(
+        Modifier.widthIn(max = 150.dp).focusRequester(requester).onFocusChanged {
             focused = it.isFocused
             if (it.isFocused) {
                 if (navigation.topFocused || navigation.homeNeedsFocusRepair?.invoke() != true) {
@@ -141,19 +158,85 @@ private fun TopDestination(
                 navigation.topOrder.getOrNull(index + direction)?.let { navigation.topRequesters[it]?.requestFocus() }
                 true
             } else false
-        }.border(2.dp, if (focused) NotflixVisualSpec.Text else Color.Transparent, RoundedCornerShape(4.dp))
+        }.clip(shape)
+            .background(if (active) NotflixVisualSpec.Text else Color.Transparent, shape)
+            .border(2.dp, if (focused && !active) NotflixVisualSpec.Text else Color.Transparent, shape)
             .clickable(role = Role.Tab, onClick = {
                 confirmSound()
                 navigation.topFocused = true
                 navigation.homeCancelFocus?.invoke()
                 onClick()
-            }).padding(horizontal = 8.dp, vertical = 4.dp)
+            })
+            .padding(if (icon != null) PaddingValues(6.dp) else PaddingValues(horizontal = 12.dp, vertical = 5.dp))
             .semantics { selected = active }.testTag("notflix-destination-$route"),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        Text(title, color = if (active || focused) NotflixVisualSpec.Text else NotflixVisualSpec.Secondary,
-            fontFamily = NotflixVisualSpec.BodyFont, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(2.dp))
-        Box(Modifier.width(24.dp).height(2.dp).background(if (active) NotflixVisualSpec.Accent else Color.Transparent))
+        if (icon != null) {
+            Icon(icon, contentDescription = title,
+                tint = if (active) NotflixVisualSpec.Background else NotflixVisualSpec.Text,
+                modifier = Modifier.size(20.dp))
+        } else {
+            Text(title, color = if (active) NotflixVisualSpec.Background else if (focused) NotflixVisualSpec.Text else NotflixVisualSpec.Secondary,
+                fontFamily = NotflixVisualSpec.BodyFont, fontSize = 15.sp, lineHeight = 19.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/**
+ * Restyle 2: the profile CIRCLE at the end of the top bar — the active
+ * profile's avatar (photo, or initial on its color), Netflix-style. OK opens
+ * the profile switcher. Same focus/key wiring as [TopDestination]; focus
+ * shows the circle's white ring.
+ */
+@Composable
+private fun TopProfileCircle(
+    profile: NotflixProfileChip, navigation: NotflixNavigationState,
+    contentFocusRequester: FocusRequester, isHome: Boolean, onClick: () -> Unit
+) {
+    val requester = remember { FocusRequester() }
+    val confirmSound = rememberNotflixConfirmSound()
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    var focused by remember { mutableStateOf(false) }
+    DisposableEffect(requester) {
+        navigation.topRequesters["profile"] = requester
+        onDispose { navigation.topRequesters.remove("profile") }
+    }
+    Box(
+        Modifier.focusRequester(requester).onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) {
+                if (navigation.topFocused || navigation.homeNeedsFocusRepair?.invoke() != true) {
+                    navigation.topFocused = true
+                    navigation.homeCancelFocus?.invoke()
+                }
+            }
+        }.onPreviewKeyEvent { event ->
+            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                navigation.topFocused = false
+                if (isHome) navigation.homeDown?.invoke() else runCatching { contentFocusRequester.requestFocus() }
+                true
+            } else if (event.type == KeyEventType.KeyDown && event.key in setOf(Key.DirectionLeft, Key.DirectionRight)) {
+                navigation.topFocused = true
+                navigation.homeCancelFocus?.invoke()
+                val index = navigation.topOrder.indexOf("profile")
+                val direction = if ((event.key == Key.DirectionRight) != rtl) 1 else -1
+                navigation.topOrder.getOrNull(index + direction)?.let { navigation.topRequesters[it]?.requestFocus() }
+                true
+            } else false
+        }.clickable(role = Role.Button, onClick = {
+            confirmSound()
+            navigation.topFocused = true
+            navigation.homeCancelFocus?.invoke()
+            onClick()
+        }).testTag("notflix-destination-profile"),
+        contentAlignment = Alignment.Center
+    ) {
+        ProfileAvatarCircle(
+            name = profile.name,
+            colorHex = profile.colorHex,
+            size = 36.dp,
+            isSelected = focused,
+            avatarImageUrl = profile.avatarImageUrl
+        )
     }
 }

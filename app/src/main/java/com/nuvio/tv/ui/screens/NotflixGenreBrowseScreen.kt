@@ -25,7 +25,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -60,15 +62,40 @@ import kotlin.math.roundToInt
 /**
  * Restyle 2 (2026-11-19): the dedicated genre browse screen.
  *
- * OK on a genre tile opens this screen — a full grid of that genre's titles
- * across every home catalog row — instead of restyle 1's in-place home
- * filter. Items come from the shared [HomeViewModel.fullCatalogRows] (the
- * same data the home already shows): a row whose title names the genre
- * contributes all its items, other rows only their matching ones, deduped
- * by apiType:id. Anime is the exception: its row mixes in western animation,
- * so its items are matched one by one (Animation + Japanese origin).
- * BACK returns to the home (popBackStack).
+ * OK on a genre pill opens this screen — that genre's titles across every
+ * home catalog row — instead of restyle 1's in-place home filter. Items come
+ * from the shared [HomeViewModel.fullCatalogRows] (the same data the home
+ * already shows): a row whose title names the genre contributes all its
+ * items, other rows only their matching ones, deduped by apiType:id. Anime
+ * is the exception: its row mixes in western animation, so its items are
+ * matched one by one (Animation + Japanese origin). BACK returns to the home
+ * (popBackStack).
+ *
+ * Inside, the titles are split into Kaptain-style sections — New, Popular,
+ * Top All Time, Top of Year, movies and series apart — as tabs of the shared
+ * category page, so the open card, the audible trailer and the card actions
+ * all work exactly as in the official «Ver todo» screen. Only non-empty
+ * sections appear; «الكل» always comes first with everything.
  */
+private fun notflixGenreIsSeries(item: MetaPreview): Boolean =
+    item.apiType.equals("series", ignoreCase = true) || item.apiType.equals("tv", ignoreCase = true)
+
+private val notflixGenreSectionYearRegex = Regex("(19|20)\\d{2}")
+
+private fun notflixGenreSectionYear(item: MetaPreview): Int? {
+    val raw = item.released ?: item.releaseInfo ?: return null
+    return notflixGenreSectionYearRegex.find(raw)?.value?.toIntOrNull()
+}
+
+/** Best first; unrated titles sort last, votes break ties. */
+private val notflixGenreRatingOrder: Comparator<MetaPreview> =
+    compareByDescending<MetaPreview> { it.imdbRating ?: -1f }
+        .thenByDescending { it.voteCount ?: -1 }
+
+/** Most-voted first; rating breaks ties. */
+private val notflixGenrePopularityOrder: Comparator<MetaPreview> =
+    compareByDescending<MetaPreview> { it.voteCount ?: -1 }
+        .thenByDescending { it.imdbRating ?: -1f }
 @Composable
 fun NotflixGenreBrowseScreen(
     genreTag: String,
@@ -117,6 +144,49 @@ fun NotflixGenreBrowseScreen(
         else ageItems.filterNot { hiddenTitleKey(it.apiType, it.id) in uiState.hiddenTitleKeys }
     }
     LaunchedEffect(genreItems) { viewModel.ageGate.prefetch(genreItems) }
+
+    // Kaptain-style sections (New / Popular / Top All Time / Top of Year,
+    // movies and series apart), as tabs of the shared category page. Only
+    // non-empty sections appear; «الكل» always comes first with everything.
+    var selectedSection by remember(genreTag) { mutableStateOf(0) }
+    val sectionAll = stringResource(R.string.notflix_genre_section_all)
+    val sectionNewMovies = stringResource(R.string.notflix_genre_section_new_movies)
+    val sectionNewSeries = stringResource(R.string.notflix_genre_section_new_series)
+    val sectionPopularMovies = stringResource(R.string.notflix_genre_section_popular_movies)
+    val sectionPopularSeries = stringResource(R.string.notflix_genre_section_popular_series)
+    val sectionTopMovies = stringResource(R.string.notflix_genre_section_top_movies)
+    val sectionTopSeries = stringResource(R.string.notflix_genre_section_top_series)
+    val sectionTopYearMovies = stringResource(R.string.notflix_genre_section_top_year_movies)
+    val sectionTopYearSeries = stringResource(R.string.notflix_genre_section_top_year_series)
+    val genreSections = remember(genreItems, sectionAll, sectionNewMovies, sectionNewSeries,
+        sectionPopularMovies, sectionPopularSeries, sectionTopMovies, sectionTopSeries,
+        sectionTopYearMovies, sectionTopYearSeries) {
+        val year = java.time.Year.now().value
+        fun sectionsFor(
+            list: List<MetaPreview>, prefix: String,
+            newLabel: String, popularLabel: String, topLabel: String, topYearLabel: String
+        ): List<NotflixSeeAllSection> = buildList {
+            val fresh = list.filter { (notflixGenreSectionYear(it) ?: 0) >= year - 1 }
+                .sortedWith(compareByDescending<MetaPreview> { notflixGenreSectionYear(it) ?: 0 }
+                    .then(notflixGenreRatingOrder))
+                .take(100)
+            if (fresh.isNotEmpty()) add(NotflixSeeAllSection("${prefix}_new", newLabel, fresh))
+            val popular = list.sortedWith(notflixGenrePopularityOrder).take(100)
+            if (popular.isNotEmpty()) add(NotflixSeeAllSection("${prefix}_popular", popularLabel, popular))
+            val top = list.filter { it.imdbRating != null }.sortedWith(notflixGenreRatingOrder).take(100)
+            if (top.isNotEmpty()) add(NotflixSeeAllSection("${prefix}_top", topLabel, top))
+            val topYear = list.filter { notflixGenreSectionYear(it) == year && it.imdbRating != null }
+                .sortedWith(notflixGenreRatingOrder).take(100)
+            if (topYear.isNotEmpty()) add(NotflixSeeAllSection("${prefix}_top_year", topYearLabel, topYear))
+        }
+        buildList {
+            add(NotflixSeeAllSection("all", sectionAll, genreItems))
+            addAll(sectionsFor(genreItems.filterNot(::notflixGenreIsSeries), "movie",
+                sectionNewMovies, sectionPopularMovies, sectionTopMovies, sectionTopYearMovies))
+            addAll(sectionsFor(genreItems.filter(::notflixGenreIsSeries), "series",
+                sectionNewSeries, sectionPopularSeries, sectionTopSeries, sectionTopYearSeries))
+        }
+    }
 
     // Notflix branch: the same category page as «Ver todo», with the genre's
     // own title. Data, pagination and the card menu are the home's own.
@@ -181,7 +251,10 @@ fun NotflixGenreBrowseScreen(
                 onCardPlay = onNavigateToPlay?.let { play ->
                     { item -> play(item.id, item.apiType, item.sourceAddonBaseUrl.orEmpty(), !notflixAutoplay) }
                 },
-                canPlay = onNavigateToPlay != null
+                canPlay = onNavigateToPlay != null,
+                sections = genreSections,
+                selectedTabIndex = selectedSection,
+                onSelectTab = { selectedSection = it }
             )
             uiState.hiddenTitleUndo?.takeIf { it.profileId == viewModel.profileManager.activeProfileId.value }?.let { undo ->
                 com.nuvio.tv.ui.screens.home.HiddenTitleUndoNotice(undo, viewModel::undoHideTitle,

@@ -1,12 +1,7 @@
 package com.nuvio.tv.ui.screens.home
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -21,39 +16,37 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.PosterShape
-import com.nuvio.tv.ui.appearance.LocalNotflixPresentation
 import com.nuvio.tv.ui.appearance.NotflixVisualSpec as Spec
 
 /**
  * Restyle 2 (2026-11-19): the genre strip on the Notflix home.
  *
- * One tile per genre from the user's own dictated list (21 names, in order),
- * modelled on Matrix's Productions row: a LANDSCAPE tile (248x140) with the
- * Arabic name on a dark per-genre color — refined per genre, dark cinematic.
- * NO pictures on the tiles (his correction: «مش صورة في الايقونات قصدي في
- * محتوي لداخل» — the picture belongs to the content inside). Tiles animate
- * while focused (scale + brighten + a slow diagonal shine sweep).
- * No emoji, ever.
+ * One pill per genre from the user's own dictated list (21 names, in order),
+ * Netflix-style: a compact rounded pill with the Arabic name on a dark
+ * per-genre color. NO pictures on the pills (his correction: «مش صورة في
+ * الايقونات قصدي في محتوي لداخل» — the picture belongs to the content
+ * inside). No emoji, ever.
  *
- * OK on a tile opens that genre's dedicated browse screen
- * ([NotflixGenreBrowseScreen]); BACK from there returns to the home. The
- * content inside must express the genre's title: items match by TMDB genre,
+ * Focus on a pill live-filters the rows below to that genre (the pill turns
+ * white, like Netflix's active pill); OK on a pill opens that genre's
+ * dedicated browse screen ([NotflixGenreBrowseScreen]); BACK from there
+ * returns to the home, BACK on the home clears the filter. The content
+ * inside must express the genre's title: items match by TMDB genre,
  * title words, synopsis words, origin country (anime = Japanese animation)
  * and recency/rating (new & worthy). A row whose title names the genre feeds
  * its screen whole — except anime, whose row mixes in western animation.
- * There is no «الكل» tile: the dictated list has none.
+ * There is no «الكل» pill: the dictated list has none.
  */
 internal const val NOTFLIX_GENRES_ROW_KEY = "genres"
 
@@ -235,6 +228,36 @@ internal fun NotflixGenre.matchesItem(item: MetaPreview): Boolean {
     return false
 }
 
+/** Restyle 2: focus on a pill live-filters the home rows to that genre.
+ *  The strip itself stays; Continue watching, the airing row, collections
+ *  and folders are never filtered (they are not genre rows). A row whose
+ *  title names the genre stays whole, other rows keep only matching tiles. */
+internal fun notflixFilterRowsByGenre(rows: List<NotflixDisplayRow>, genre: NotflixGenre): List<NotflixDisplayRow> {
+    return buildList {
+        rows.forEach { row ->
+            when {
+                row.key == NOTFLIX_GENRES_ROW_KEY -> add(row)
+                row.key == "cw" -> Unit
+                row.key == NOTFLIX_AIRING_ROW_KEY -> Unit
+                row.key.startsWith("collection_") -> Unit
+                row.folderTarget != null -> Unit
+                else -> {
+                    val titleMatches = row.title.contains(genre.titleAr) ||
+                        (genre.matchTerms + genre.nameKeywords + genre.rowTitleTerms).any { row.title.contains(it, ignoreCase = true) } ||
+                        row.title.contains(genre.tag, ignoreCase = true)
+                    if (titleMatches) add(row)
+                    else {
+                        val kept = row.tiles.filter { tile ->
+                            tile.key != "see-all" && tile.meta?.let { genre.matchesItem(it) } == true
+                        }
+                        if (kept.isNotEmpty()) add(row.copy(tiles = kept, empty = false))
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** The genres strip as a display row, so the home's focus machinery works free. */
 internal fun notflixGenreRow(): NotflixDisplayRow = NotflixDisplayRow(
     key = NOTFLIX_GENRES_ROW_KEY,
@@ -254,68 +277,42 @@ internal fun notflixGenreRow(): NotflixDisplayRow = NotflixDisplayRow(
     wide = true
 )
 
-private fun Color.brighten(factor: Float): Color =
-    copy(red = (red * factor).coerceAtMost(1f), green = (green * factor).coerceAtMost(1f), blue = (blue * factor).coerceAtMost(1f))
-
 private val genreStripDirections = setOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)
 
 /**
- * One genre tile: landscape, the Arabic genre name on its own dark
- * per-genre color, animated on focus (scale + brighten + shine sweep)
- * and marked with a white border while focused. No pictures on the tiles —
- * the artwork lives in the content inside.
+ * One genre pill: compact and rounded, the Arabic genre name on its own dark
+ * per-genre color. The ACTIVE pill (the one filtering the rows below) is
+ * white with black text, like Netflix's selected pill; focus only scales
+ * the pill and — on an inactive pill — adds a white border. The fill never
+ * changes on focus. No pictures on the pills — the artwork lives in the
+ * content inside.
  */
 @Composable
-internal fun NotflixGenreTile(genre: NotflixGenre, modifier: Modifier = Modifier) {
+internal fun NotflixGenrePill(genre: NotflixGenre, active: Boolean, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isFocused) 1.06f else 1f, tween(180), label = "genreScale")
-    val brighten by animateFloatAsState(if (isFocused) 1.45f else 1f, tween(180), label = "genreBrighten")
-    val shineProgress = if (isFocused) {
-        val transition = rememberInfiniteTransition(label = "genreShine")
-        transition.animateFloat(0f, 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(2600, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-            label = "genreShineProgress").value
-    } else 0f
-    val cardSize = LocalNotflixPresentation.current.cardSize
-    val top = genre.gradientTop.brighten(brighten)
-    val bottom = genre.gradientBottom.brighten(brighten)
-    val borderColor = if (isFocused) Color.White else Color.Transparent
-    BoxWithConstraints(
+    val scale by animateFloatAsState(if (isFocused) 1.05f else 1f, tween(150), label = "genrePillScale")
+    val shape = RoundedCornerShape(20.dp)
+    val fill: Brush = if (active) SolidColor(Color.White)
+        else Brush.verticalGradient(listOf(genre.gradientTop, genre.gradientBottom))
+    Box(
         modifier
-            .size(Spec.wideWidth(cardSize).dp, Spec.wideHeight(cardSize).dp)
+            .height(40.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(5.dp))
-            .background(Brush.verticalGradient(listOf(top, bottom)))
-            .border(2.dp, borderColor, RoundedCornerShape(5.dp))
-            .onFocusChanged { isFocused = it.isFocused },
+            .clip(shape)
+            .background(fill, shape)
+            .border(2.dp, if (isFocused && !active) Color.White else Color.Transparent, shape)
+            .onFocusChanged { isFocused = it.isFocused }
+            .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (isFocused) {
-            val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
-            Box(
-                Modifier
-                    .width(maxWidth * 0.45f)
-                    .height(maxHeight * 2.2f)
-                    .graphicsLayer {
-                        translationX = -widthPx * 1.1f + shineProgress * widthPx * 2.2f
-                        rotationZ = 20f
-                    }
-                    .background(Brush.horizontalGradient(
-                        listOf(Color.Transparent, Color.White.copy(alpha = 0.16f), Color.Transparent)
-                    ))
-            )
-        }
         Text(
             text = genre.titleAr,
-            color = Color.White,
+            color = if (active) Color.Black else Color.White,
             fontFamily = Spec.BodyFont,
-            fontSize = 19.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp)
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -323,16 +320,20 @@ internal fun NotflixGenreTile(genre: NotflixGenre, modifier: Modifier = Modifier
 /**
  * The strip itself, mirroring [NotflixRow]'s focus wiring (requesters,
  * record-on-focus, direction keys to the home's onKey) with no row title —
- * like Netflix's mood bar, the strip is self-explanatory.
+ * like Netflix's mood bar, the strip is self-explanatory. Focus on a pill
+ * live-filters the rows below ([onGenreFocus]); OK opens the genre's own
+ * browse screen ([onGenreClick]).
  */
 @Composable
 internal fun NotflixGenreStripRow(
     row: NotflixDisplayRow,
     horizontal: LazyListState,
     requesters: MutableMap<String, FocusRequester>,
+    selectedGenre: NotflixGenre?,
     onActualFocus: (String, Boolean) -> Unit,
     onFocused: (Int, NotflixTile) -> Unit,
     onKey: (Int, Key) -> Unit,
+    onGenreFocus: (NotflixGenre) -> Unit,
     onGenreClick: (NotflixGenre) -> Unit
 ) {
     Column(Modifier.fillMaxWidth().testTag("notflix-row-${row.key}")) {
@@ -349,12 +350,16 @@ internal fun NotflixGenreStripRow(
                     requesters[identity] = requester
                     onDispose { requesters.remove(identity) }
                 }
-                NotflixGenreTile(
+                NotflixGenrePill(
                     genre = genre,
+                    active = selectedGenre == genre,
                     modifier = Modifier
                         .focusRequester(requester)
                         .onFocusChanged {
-                            if (it.isFocused) onFocused(index, tile)
+                            if (it.isFocused) {
+                                onFocused(index, tile)
+                                onGenreFocus(genre)
+                            }
                             onActualFocus(identity, it.isFocused)
                         }
                         .onPreviewKeyEvent { event ->

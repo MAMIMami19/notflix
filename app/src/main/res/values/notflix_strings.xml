@@ -25,6 +25,18 @@
     <string name="notflix_loading_catalogs">Loading catalogs…</string>
     <string name="notflix_no_content">No content available</string>
     <string name="notflix_genre_empty">No results for «%1$s» — try another genre</string>
+    <!-- Restyle 2: Netflix-style top bar + genre-section tabs. -->
+    <string name="notflix_tab_series_programs">Series &amp; Programs</string>
+    <string name="notflix_my_space">My Space</string>
+    <string name="notflix_genre_section_all">All</string>
+    <string name="notflix_genre_section_new_movies">New movies</string>
+    <string name="notflix_genre_section_new_series">New series</string>
+    <string name="notflix_genre_section_popular_movies">Popular movies</string>
+    <string name="notflix_genre_section_popular_series">Popular series</string>
+    <string name="notflix_genre_section_top_movies">Top movies</string>
+    <string name="notflix_genre_section_top_series">Top series</string>
+    <string name="notflix_genre_section_top_year_movies">Best movies of the year</string>
+    <string name="notflix_genre_section_top_year_series">Best series of the year</string>
     <string name="notflix_age_empty">No titles are available for this profile.</string>
     <string name="notflix_age_empty_no_tmdb">Age filtering needs the TMDB key (Settings &gt; Integrations).</string>
     <string name="notflix_auth_qr_tagline">Sign in to sync your library and your progress across all your screens.</string>

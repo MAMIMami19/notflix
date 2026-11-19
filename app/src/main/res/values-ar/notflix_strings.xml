@@ -22,6 +22,18 @@
     <string name="notflix_loading_catalogs">جارٍ تحميل الكتالوجات…</string>
     <string name="notflix_no_content">لا يوجد محتوى متاح</string>
     <string name="notflix_genre_empty">لا توجد نتائج لـ «%1$s» — جرّب تصنيفاً آخر</string>
+    <!-- Restyle 2: Netflix-style top bar + genre-section tabs. -->
+    <string name="notflix_tab_series_programs">مسلسلات وبرامج</string>
+    <string name="notflix_my_space">مساحتي</string>
+    <string name="notflix_genre_section_all">الكل</string>
+    <string name="notflix_genre_section_new_movies">أفلام جديدة</string>
+    <string name="notflix_genre_section_new_series">مسلسلات جديدة</string>
+    <string name="notflix_genre_section_popular_movies">أفلام رائجة</string>
+    <string name="notflix_genre_section_popular_series">مسلسلات رائجة</string>
+    <string name="notflix_genre_section_top_movies">أفضل الأفلام</string>
+    <string name="notflix_genre_section_top_series">أفضل المسلسلات</string>
+    <string name="notflix_genre_section_top_year_movies">أفضل أفلام العام</string>
+    <string name="notflix_genre_section_top_year_series">أفضل مسلسلات العام</string>
     <string name="notflix_age_empty">لا توجد عناوين متاحة لهذا الملف الشخصي.</string>
     <string name="notflix_age_empty_no_tmdb">تصفية العمر تحتاج مفتاح TMDB (الإعدادات &gt; التكاملات).</string>
     <string name="notflix_auth_qr_tagline">سجّل الدخول لمزامنة مكتبتك وتقدّمك على كل شاشاتك.</string>

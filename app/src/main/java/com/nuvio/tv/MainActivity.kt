@@ -49,10 +49,10 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.SideEffect
 import com.nuvio.tv.ui.appearance.IntroBinding
 import com.nuvio.tv.ui.appearance.IntroDecisionInput
@@ -210,6 +210,7 @@ import com.nuvio.tv.ui.appearance.LocalNotflixPresentation
 import com.nuvio.tv.ui.appearance.NotflixPresentation
 import com.nuvio.tv.ui.appearance.NotflixNavigationState
 import com.nuvio.tv.ui.appearance.NotflixDestination
+import com.nuvio.tv.ui.appearance.NotflixProfileChip
 import com.nuvio.tv.ui.appearance.NotflixPresentationTheme
 import com.nuvio.tv.ui.appearance.rememberNotflixNavigationShell
 import com.nuvio.tv.domain.model.AppAppearance
@@ -1240,6 +1241,12 @@ open class MainActivity : ComponentActivity() {
                             add(Screen.Library.route)
                             add(Screen.Settings.route)
                             if (notflixActive) add(Screen.Calendar.route)
+                            // Restyle 2: the top-bar Series/Movies tabs are
+                            // root screens in the Notflix look.
+                            if (notflixActive) {
+                                add(Screen.SeriesBrowse.route)
+                                add(Screen.MoviesBrowse.route)
+                            }
                             if (discoverLocation == DiscoverLocation.IN_SIDEBAR) {
                                 add(Screen.Discover.route)
                             }
@@ -1250,9 +1257,12 @@ open class MainActivity : ComponentActivity() {
                     val strNavDiscover = stringResource(R.string.nav_discover)
                     val strNavSearch = stringResource(R.string.nav_search)
                     val strNavLibrary = stringResource(R.string.nav_library)
-                    val strNavCalendar = stringResource(R.string.nav_calendar)
-                    // M46: nombre de la pestaña Biblioteca en la apariencia Notflix.
-                    val strNavMyList = stringResource(R.string.notflix_my_list)
+                    // Restyle 2: the Netflix-style top bar — search icon,
+                    // Home, Series & Programs, Movies, My Space, Settings
+                    // gear. Calendar leaves the bar (still in the nav graph).
+                    val strNavSeriesPrograms = stringResource(R.string.notflix_tab_series_programs)
+                    val strNavMovies = stringResource(R.string.nav_movies)
+                    val strNavMySpace = stringResource(R.string.notflix_my_space)
                     val strNavSettings = stringResource(R.string.nav_settings)
                     val drawerItems = remember(
                         strNavHome,
@@ -1302,26 +1312,47 @@ open class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    // Calendario solo existe en la apariencia Notflix y va entre Biblioteca y Configuración.
-                    val shellDrawerItems = remember(drawerItems, strNavCalendar, strNavMyList, notflixActive) {
+                    // Restyle 2: the Notflix top bar is its own set now —
+                    // search icon, Home, Series & Programs, Movies, My Space
+                    // (the Library screen), Settings gear. The classic and
+                    // modern sidebars keep the stock drawer items.
+                    val shellDrawerItems = remember(
+                        drawerItems, strNavHome, strNavSearch, strNavSeriesPrograms,
+                        strNavMovies, strNavMySpace, strNavSettings, notflixActive
+                    ) {
                         if (!notflixActive) {
                             drawerItems
                         } else {
-                            buildList {
-                                drawerItems.forEach { item ->
-                                    if (item.route == Screen.Settings.route) {
-                                        add(
-                                            DrawerItem(
-                                                route = Screen.Calendar.route,
-                                                label = strNavCalendar,
-                                                icon = Icons.Default.DateRange
-                                            )
-                                        )
-                                    }
-                                    // M46: la pestaña Biblioteca se llama «Mi lista» en Notflix.
-                                    add(if (item.route == Screen.Library.route) item.copy(label = strNavMyList) else item)
-                                }
-                            }
+                            listOf(
+                                DrawerItem(
+                                    route = Screen.Search.route,
+                                    label = strNavSearch,
+                                    icon = Icons.Default.Search
+                                ),
+                                DrawerItem(
+                                    route = Screen.Home.route,
+                                    label = strNavHome,
+                                    icon = Icons.Default.Home
+                                ),
+                                DrawerItem(
+                                    route = Screen.SeriesBrowse.route,
+                                    label = strNavSeriesPrograms
+                                ),
+                                DrawerItem(
+                                    route = Screen.MoviesBrowse.route,
+                                    label = strNavMovies
+                                ),
+                                DrawerItem(
+                                    route = Screen.Library.route,
+                                    label = strNavMySpace,
+                                    iconRes = R.raw.sidebar_library
+                                ),
+                                DrawerItem(
+                                    route = Screen.Settings.route,
+                                    label = strNavSettings,
+                                    icon = Icons.Default.Settings
+                                )
+                            )
                         }
                     }
                     val selectedDrawerRoute = shellDrawerItems.firstOrNull { item ->
@@ -1415,9 +1446,30 @@ open class MainActivity : ComponentActivity() {
                                         selectedRoute = selectedDrawerRoute,
                                         rootRoutes = rootRoutes,
                                         homeRoute = Screen.Home.route,
-                                        destinations = shellDrawerItems.map { NotflixDestination(it.route, it.label) },
+                                        destinations = shellDrawerItems.map {
+                                            NotflixDestination(
+                                                route = it.route,
+                                                title = it.label,
+                                                // Restyle 2: search + settings
+                                                // are icon destinations; the
+                                                // rest are text tabs.
+                                                icon = when (it.route) {
+                                                    Screen.Search.route -> Icons.Default.Search
+                                                    Screen.Settings.route -> Icons.Default.Settings
+                                                    else -> null
+                                                }
+                                            )
+                                        },
                                         contentFocusRequester = contentFocusRequester,
-                                        profileName = activeProfile?.name?.takeIf { profiles.size > 1 },
+                                        // Restyle 2: the profile CIRCLE —
+                                        // avatar + color, not the name text.
+                                        profile = activeProfile?.takeIf { profiles.size > 1 }?.let {
+                                            NotflixProfileChip(
+                                                name = it.name,
+                                                colorHex = it.avatarColorHex ?: "#1E88E5",
+                                                avatarImageUrl = activeProfileAvatarImageUrl
+                                            )
+                                        },
                                         onSwitchProfile = handleSwitchProfile,
                                         onNavigate = { target ->
                                             optimisticRoute = target

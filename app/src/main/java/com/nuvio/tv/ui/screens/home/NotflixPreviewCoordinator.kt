@@ -17,7 +17,10 @@ internal data class PreviewBinding(val context: AppearanceContext, val confirmat
 internal data class PreviewVisit(val binding: PreviewBinding, val identity: String, val canonical: String, val epoch: Long)
 internal data class PreviewCandidate(val visit: PreviewVisit, val item: MetaPreview, val expanded: Boolean)
 internal data class PreviewEnvironment(
-    val binding: PreviewBinding? = null, val enabled: Boolean = false, val sound: Boolean = false,
+    val binding: PreviewBinding? = null, val enabled: Boolean = false,
+    // Restyle 2: audible by default — the Notflix preview never starts muted,
+    // in any profile (see NotflixCardPreview.rememberNotflixPreviewSession).
+    val sound: Boolean = true,
     val valid: Boolean = false, val reduced: Boolean = true, val resumed: Boolean = false,
     val windowFocused: Boolean = false, val introActive: Boolean = true,
     val blocked: Boolean = false, val otherVideo: Boolean = false

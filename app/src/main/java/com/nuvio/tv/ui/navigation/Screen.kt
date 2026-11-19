@@ -138,6 +138,11 @@ sealed class Screen(val route: String) {
     }
     data object Search : Screen("search")
     data object Discover : Screen("discover")
+    // Restyle 2: the Netflix-style top-bar tabs. Top-level routes (not
+    // discover/*) so they never trip the Discover-OFF bounce in MainActivity;
+    // each renders DiscoverScreen with its type pre-selected.
+    data object SeriesBrowse : Screen("series")
+    data object MoviesBrowse : Screen("movies")
     data object Library : Screen("library")
     data object Calendar : Screen("calendar")
     data object Settings : Screen("settings")

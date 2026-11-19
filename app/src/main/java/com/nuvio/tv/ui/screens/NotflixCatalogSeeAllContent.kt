@@ -52,9 +52,20 @@ internal fun notflixCatalogItemWatched(
 }
 
 /**
+ * Restyle 2: one Kaptain-style section of a genre screen — a tab of the
+ * shared category page (e.g. «أفلام جديدة», «أفضل المسلسلات»).
+ */
+internal data class NotflixSeeAllSection(val key: String, val label: String, val items: List<MetaPreview>)
+
+/**
  * M49: rama Notflix de «Ver todo» de una fila de catálogo. Comparte la página interna con la
  * carpeta de colección; no pide datos: los elementos, la paginación y las acciones son las mismas
  * del `HomeViewModel`/`SearchViewModel` que usa la pantalla oficial.
+ *
+ * Restyle 2: when [sections] is given, the page shows one tab per section
+ * instead of the single [items] tab; [items] still drives the loading and
+ * empty states. The official «Ver todo» caller passes no sections and is
+ * unaffected.
  */
 @Composable
 internal fun NotflixCatalogSeeAllScreen(
@@ -76,7 +87,10 @@ internal fun NotflixCatalogSeeAllScreen(
     previewSession: NotflixPreviewSession? = null,
     cardActions: NotflixCardActionsHost? = null,
     onCardPlay: ((MetaPreview) -> Unit)? = null,
-    canPlay: Boolean = false
+    canPlay: Boolean = false,
+    sections: List<NotflixSeeAllSection>? = null,
+    selectedTabIndex: Int = 0,
+    onSelectTab: (Int) -> Unit = {}
 ) {
     val posterOptionsState by posterController.state.collectAsState()
     val keys = remember(items) { notflixCategoryPosterKeys(items) }
@@ -85,6 +99,32 @@ internal fun NotflixCatalogSeeAllScreen(
         item.toNotflixPosterSpec(watched = watched(item))
             .copy(key = keys.getOrElse(index) { "${item.apiType}:${item.id}" })
     }
+    // Sections share titles with «All», so their specs are built once over
+    // the union (deduped by title identity — the genre screen dedupes) and
+    // each tab picks its own subset. The single-tab path is unchanged.
+    val tabs = sections?.let { list ->
+        val union = list.flatMap { it.items }.distinctBy { "${it.apiType}:${it.id}" }
+        val unionKeys = notflixCategoryPosterKeys(union)
+        val unionSpecByIdentity = union.mapIndexed { index, item ->
+            val key = unionKeys.getOrElse(index) { "${item.apiType}:${item.id}" }
+            "${item.apiType}:${item.id}" to item.toNotflixPosterSpec(watched = watched(item)).copy(key = key)
+        }.toMap()
+        list.map { section ->
+            NotflixCategoryTab(
+                key = section.key,
+                label = section.label,
+                items = section.items.mapNotNull { item -> unionSpecByIdentity["${item.apiType}:${item.id}"] }
+            )
+        }
+    } ?: listOf(
+        NotflixCategoryTab(
+            key = "catalog",
+            label = title,
+            items = specs,
+            isLoading = isLoading,
+            hasMore = hasMore
+        )
+    )
     when {
         isLoading && items.isEmpty() -> NotflixCategorySkeleton()
 
@@ -97,18 +137,10 @@ internal fun NotflixCatalogSeeAllScreen(
         else -> NotflixCategoryPage(
             title = title,
             collectionLabel = collectionLabel,
-            tabs = listOf(
-                NotflixCategoryTab(
-                    key = "catalog",
-                    label = title,
-                    items = specs,
-                    isLoading = isLoading,
-                    hasMore = hasMore
-                )
-            ),
-            selectedTabIndex = 0,
+            tabs = tabs,
+            selectedTabIndex = selectedTabIndex,
             saveScope = "catalog-$catalogKey",
-            onSelectTab = {},
+            onSelectTab = onSelectTab,
             headerFor = { spec -> itemsByKey[spec.key]?.toNotflixCategoryHeader() },
             onPosterClick = { _, spec ->
                 itemsByKey[spec.key]?.let(onOpen)

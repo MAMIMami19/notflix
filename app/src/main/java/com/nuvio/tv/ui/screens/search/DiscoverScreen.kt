@@ -39,6 +39,9 @@ import kotlin.math.roundToInt
 fun DiscoverScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     showBuiltInHeader: Boolean = true,
+    /** Restyle 2: the top-bar Series/Movies tabs pre-select their type
+     *  ("series" / "movie"); null keeps the default Discover behaviour. */
+    initialType: String? = null,
     onNavigateToDetail: (String, String, String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -49,6 +52,7 @@ fun DiscoverScreen(
     var discoverFocusedItemIndex by rememberSaveable { mutableStateOf(0) }
     var restoreDiscoverFocus by rememberSaveable { mutableStateOf(false) }
     var pendingDiscoverRestoreOnResume by rememberSaveable { mutableStateOf(false) }
+    var initialTypeApplied by rememberSaveable(initialType) { mutableStateOf(false) }
 
     val posterCardStyle = remember(uiState.posterCardWidthDp, uiState.posterCardCornerRadiusDp) {
         val computedHeightDp = (uiState.posterCardWidthDp * 1.5f).roundToInt()
@@ -64,6 +68,18 @@ fun DiscoverScreen(
     LaunchedEffect(uiState.discoverLocation) {
         if (uiState.discoverLocation != DiscoverLocation.OFF) {
             viewModel.ensureDiscoverLoaded()
+        }
+    }
+
+    // Restyle 2: apply the tab's type once the catalogs are loaded — before
+    // that there is nothing to pick from, and the initial load would
+    // overwrite the selection with its own default.
+    LaunchedEffect(uiState.discoverInitialized, initialType) {
+        if (initialType != null && !initialTypeApplied && uiState.discoverInitialized) {
+            initialTypeApplied = true
+            if (uiState.selectedDiscoverType != initialType) {
+                viewModel.onEvent(SearchEvent.SelectDiscoverType(initialType))
+            }
         }
     }
 

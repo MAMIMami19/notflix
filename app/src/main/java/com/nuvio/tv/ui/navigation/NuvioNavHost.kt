@@ -1238,6 +1238,45 @@ private fun PlaybackNavHost(
             )
         }
 
+        // Restyle 2: the top-bar Series/Movies tabs — the same Discover
+        // screen with its type pre-selected. Separate back-stack entries,
+        // so each tab keeps its own catalog, genre and scroll state.
+        composable(Screen.SeriesBrowse.route) {
+            DiscoverScreen(
+                showBuiltInHeader = !hideBuiltInHeaders,
+                initialType = "series",
+                onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
+                    val heroBackdrop = HeroBackdropState.consumeAndClear()
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = itemId,
+                            itemType = itemType,
+                            addonBaseUrl = addonBaseUrl,
+                            heroBackdropUrl = heroBackdrop
+                        )
+                    )
+                }
+            )
+        }
+
+        composable(Screen.MoviesBrowse.route) {
+            DiscoverScreen(
+                showBuiltInHeader = !hideBuiltInHeaders,
+                initialType = "movie",
+                onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
+                    val heroBackdrop = HeroBackdropState.consumeAndClear()
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = itemId,
+                            itemType = itemType,
+                            addonBaseUrl = addonBaseUrl,
+                            heroBackdropUrl = heroBackdrop
+                        )
+                    )
+                }
+            )
+        }
+
         composable(Screen.Library.route) {
             LibraryScreen(
                 showBuiltInHeader = !hideBuiltInHeaders,
