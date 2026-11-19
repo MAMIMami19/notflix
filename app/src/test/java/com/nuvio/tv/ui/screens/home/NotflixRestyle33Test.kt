@@ -124,26 +124,28 @@ class NotflixRestyle33Test {
     // ---- §3: a pending row covers its genre (the 3.2 duplicate root cause) ----
 
     @Test fun pendingGenreRowCoversGenreSoNoSyntheticRow() {
+        // Thriller items match ONLY أعمال مشوقة: "Drama" would also match
+        // مزاج (loose terms), which would synthesize its own rows here.
         val pool = listOf(
             catalog(name = "Popular", type = ContentType.MOVIE, items = listOf(
-                item("dm1", genres = listOf("Drama")), item("dm2", genres = listOf("Drama"))
+                item("tm1", genres = listOf("Thriller")), item("tm2", genres = listOf("Thriller"))
             )),
             catalog(name = "Popular", type = ContentType.SERIES, items = listOf(
-                item("ds1", ContentType.SERIES, genres = listOf("Drama")),
-                item("ds2", ContentType.SERIES, genres = listOf("Drama"))
+                item("ts1", ContentType.SERIES, genres = listOf("Thriller")),
+                item("ts2", ContentType.SERIES, genres = listOf("Thriller"))
             ))
         )
-        // Control: without any row, the pool WOULD synthesize the دراما pair.
-        val control = insertNotflixSyntheticGenreRows(emptyList(), pool, mapOf("drama" to "دراما"),
+        // Control: without any row, the pool WOULD synthesize the pair.
+        val control = insertNotflixSyntheticGenreRows(emptyList(), pool, mapOf("thrilling" to "أعمال مشوقة"),
             showTypeSuffix = true, movieLabel = "فيلم", seriesLabel = "مسلسل")
-        assertEquals(listOf("دراما - فيلم", "دراما - مسلسل"), control.map { it.title })
+        assertEquals(listOf("أعمال مشوقة - فيلم", "أعمال مشوقة - مسلسل"), control.map { it.title })
         // A pending catalog row (catalog == null, display title from the
         // placeholder descriptor) covers the genre: no synthetic twin.
-        val pending = rowFor(catalog(name = "دراما"), NotflixRowPhase.PENDING)
-            .copy(catalog = null, title = "دراما - فيلم")
-        val out = insertNotflixSyntheticGenreRows(listOf(pending), pool, mapOf("drama" to "دراما"),
+        val pending = rowFor(catalog(name = "أعمال مشوقة"), NotflixRowPhase.PENDING)
+            .copy(catalog = null, title = "أعمال مشوقة - فيلم")
+        val out = insertNotflixSyntheticGenreRows(listOf(pending), pool, mapOf("thrilling" to "أعمال مشوقة"),
             showTypeSuffix = true, movieLabel = "فيلم", seriesLabel = "مسلسل")
-        assertEquals(listOf("دراما - فيلم"), out.map { it.title })
+        assertEquals(listOf("أعمال مشوقة - فيلم"), out.map { it.title })
     }
 
     @Test fun pendingThemeRowIsKeptByWhitelist() {
