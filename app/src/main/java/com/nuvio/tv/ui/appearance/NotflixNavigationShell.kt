@@ -137,7 +137,10 @@ private fun TopDestination(
     }
     val shape = if (icon != null) CircleShape else RoundedCornerShape(16.dp)
     Box(
-        Modifier.widthIn(max = 150.dp).focusRequester(requester).onFocusChanged {
+        // Restyle 3.1: 150.dp truncated the French «Séries et émissions» to
+        // «Séries et émis…» — 200.dp fits it (the bar still has room: logo +
+        // 4 tabs + gear + profile ≈ 730.dp of 960.dp).
+        Modifier.widthIn(max = 200.dp).focusRequester(requester).onFocusChanged {
             focused = it.isFocused
             if (it.isFocused) {
                 if (navigation.topFocused || navigation.homeNeedsFocusRepair?.invoke() != true) {

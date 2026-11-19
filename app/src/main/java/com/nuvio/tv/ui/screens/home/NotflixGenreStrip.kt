@@ -286,15 +286,21 @@ internal fun NotflixGenre.matchesItem(item: MetaPreview): Boolean {
 }
 
 /** Restyle 2: focus on a tile live-filters the home rows to that genre.
- *  The strip itself stays; Continue watching, the airing row, collections
- *  and folders are never filtered (they are not genre rows). A row whose
- *  title names the genre stays whole, other rows keep only matching tiles. */
+ *  The strip itself stays; Continue watching and My list stay whole (they are
+ *  personal rows, not genre rows). The airing row, collections and folders
+ *  are dropped (not genre rows). A row whose title names the genre stays
+ *  whole; other rows survive only when the genre is their MAJORITY (restyle
+ *  3.1: at least half the matchable tiles, and at least 2 matches) — one
+ *  rom-com no longer keeps a whole romance row alive under a comedy filter. */
 internal fun notflixFilterRowsByGenre(rows: List<NotflixDisplayRow>, genre: NotflixGenre): List<NotflixDisplayRow> {
     return buildList {
         rows.forEach { row ->
             when {
                 row.key == NOTFLIX_GENRES_ROW_KEY -> add(row)
-                row.key == "cw" -> Unit
+                // Restyle 3.1: personal rows are not genre content — keep them
+                // visible while filtered instead of dropping them.
+                row.key == "cw" -> add(row)
+                row.key == NOTFLIX_MY_LIST_KEY -> add(row)
                 row.key == NOTFLIX_AIRING_ROW_KEY -> Unit
                 row.key.startsWith("collection_") -> Unit
                 row.folderTarget != null -> Unit
@@ -307,7 +313,10 @@ internal fun notflixFilterRowsByGenre(rows: List<NotflixDisplayRow>, genre: Notf
                         val kept = row.tiles.filter { tile ->
                             tile.key != "see-all" && tile.meta?.let { genre.matchesItem(it) } == true
                         }
-                        if (kept.isNotEmpty()) add(row.copy(tiles = kept, empty = false))
+                        val matchable = row.tiles.count { it.key != "see-all" && it.meta != null }
+                        if (kept.size >= 2 && matchable > 0 && kept.size * 2 >= matchable) {
+                            add(row.copy(tiles = kept, empty = false))
+                        }
                     }
                 }
             }
@@ -435,6 +444,20 @@ internal fun NotflixGenreStripRow(
                         .testTag("notflix-card-$identity")
                 )
             }
+        }
+        // Restyle 3.1: a visible "filtered by X — BACK to clear" indicator,
+        // so the white tile is not the only sign a filter is active.
+        if (selectedGenre != null) {
+            Text(
+                text = stringResource(R.string.notflix_filter_active, stringResource(selectedGenre.titleRes)),
+                color = Spec.Secondary,
+                fontFamily = Spec.BodyFont,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = Spec.GUTTER.dp, end = Spec.GUTTER.dp, top = 2.dp)
+            )
         }
         Spacer(Modifier.height(12.dp))
     }

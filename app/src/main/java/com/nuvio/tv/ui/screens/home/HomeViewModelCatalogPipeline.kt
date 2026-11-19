@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.R
 import com.nuvio.tv.core.network.NetworkResult
+import com.nuvio.tv.core.util.withAppLocale
 import com.nuvio.tv.domain.model.Addon
 import com.nuvio.tv.domain.model.CatalogDescriptor
 import com.nuvio.tv.domain.model.CatalogRow
@@ -302,8 +303,12 @@ internal suspend fun HomeViewModel.loadAllCatalogsPipeline(
         // Build display title helper (respects custom titles)
         val titlesSnapshot = customCatalogTitles
         val showTypeSuffix = _uiState.value.catalogTypeSuffixEnabled
-        val strTypeMovie = appContext.getString(R.string.type_movie)
-        val strTypeSeries = appContext.getString(R.string.type_series)
+        // Restyle 3.1: the type labels must follow the APP language, not the device
+        // locale — appContext keeps the system configuration, so on a French box an
+        // Arabic catalog row read «كوميديا - Film».
+        val localizedContext = appContext.withAppLocale()
+        val strTypeMovie = localizedContext.getString(R.string.type_movie)
+        val strTypeSeries = localizedContext.getString(R.string.type_series)
         fun displayTitle(addon: Addon, catalog: CatalogDescriptor): String {
             val key = catalogKey(addonId = addon.id, type = catalog.apiType, catalogId = catalog.id)
             val custom = titlesSnapshot[key]

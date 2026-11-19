@@ -19,6 +19,7 @@
     <string name="notflix_card_size_large">Grande</string>
     <string name="notflix_continue_watching">Continuer à regarder</string>
     <string name="notflix_episode">S%1$s · E%2$s</string>
+    <string name="notflix_filter_active">Filtré par : %1$s — Retour pour effacer</string>
     <string name="notflix_loading_catalogs">Chargement des catalogues…</string>
     <string name="notflix_no_content">Aucun contenu disponible</string>
     <string name="notflix_genre_empty">Aucun résultat pour « %1$s » — essayez un autre genre</string>

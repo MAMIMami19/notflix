@@ -121,6 +121,13 @@ class SearchViewModel @Inject constructor(
     private var hasRenderedFirstCatalog = false
     private var pendingCatalogResponses = 0
     private var revealBatchAfterNextDiscoverFetch = false
+    // Restyle 3.1: Discover fallback chain — when the auto-picked catalog comes
+    // back empty (e.g. the MediaFusion PikPak watchlist, which is empty until
+    // the user saves something), advance to the next catalog of the same type
+    // instead of showing «No content available». Tried keys are per selection;
+    // an explicit user pick (selectDiscoverCatalog) is never overridden.
+    private val discoverFallbackTriedKeys = mutableSetOf<String>()
+    private var discoverSelectionExplicit = false
     private var hideUnreleasedContent = false
 
     private companion object {
@@ -998,6 +1005,8 @@ class SearchViewModel @Inject constructor(
 
     private suspend fun loadDiscoverCatalogs() {
         if (_uiState.value.discoverLocation == DiscoverLocation.OFF) return
+        discoverFallbackTriedKeys.clear()
+        discoverSelectionExplicit = false
         _uiState.update { it.copy(discoverLoading = true) }
         val addons = try {
             searchAddons()
@@ -1064,6 +1073,8 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun selectDiscoverType(type: String) {
+        discoverFallbackTriedKeys.clear()
+        discoverSelectionExplicit = false
         val catalogs = _uiState.value.discoverCatalogs
         val selectedCatalog = pickDiscoverCatalog(
             catalogs = catalogs,
@@ -1091,6 +1102,8 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun selectDiscoverCatalog(catalogKey: String) {
+        discoverFallbackTriedKeys.clear()
+        discoverSelectionExplicit = true
         val catalog = _uiState.value.discoverCatalogs.firstOrNull { it.key == catalogKey } ?: return
         _uiState.update {
             it.copy(
@@ -1155,9 +1168,18 @@ class SearchViewModel @Inject constructor(
         discoverJob?.cancel()
         discoverJob = viewModelScope.launch {
             val state = _uiState.value
-            if (state.query.trim().isNotEmpty()) return@launch
+            // Restyle 3.1: nothing is loading past this point, so a stale
+            // spinner (e.g. from a fallback the query just pre-empted) must
+            // not survive the early return.
+            if (state.query.trim().isNotEmpty()) {
+                _uiState.update { it.copy(discoverLoading = false, discoverLoadingMore = false) }
+                return@launch
+            }
             val selectedCatalog = state.discoverCatalogs.firstOrNull { it.key == state.selectedDiscoverCatalogKey }
-                ?: return@launch
+            if (selectedCatalog == null) {
+                _uiState.update { it.copy(discoverLoading = false, discoverLoadingMore = false) }
+                return@launch
+            }
 
             if (reset) {
                 revealBatchAfterNextDiscoverFetch = false
@@ -1229,17 +1251,35 @@ class SearchViewModel @Inject constructor(
                         val visible = deduped.take(visibleLimit)
                         val pending = deduped.drop(visibleLimit)
                         val shouldStopPagination = !reset && !hasNewUniqueIncoming
+                        // Restyle 3.1: an empty reset fetch means this catalog has nothing to
+                        // show — stop pagination (no skip=100 fetch of an empty catalog) and,
+                        // when the selection was automatic and no genre filter is set, fall
+                        // back to the next catalog of the same type instead of an empty tab.
+                        // The selected key must still be the one just fetched, so a stale
+                        // second emission cannot skip an untried catalog.
+                        val emptyReset = reset && incoming.isEmpty()
+                        val willFallback = emptyReset && !discoverSelectionExplicit &&
+                            _uiState.value.selectedDiscoverGenre == null &&
+                            _uiState.value.selectedDiscoverCatalogKey == selectedCatalog.key
+                        if (willFallback) {
+                            discoverFallbackTriedKeys += selectedCatalog.key
+                        }
                         _uiState.update {
                             it.copy(
-                                discoverLoading = false,
+                                discoverLoading = willFallback,
                                 discoverLoadingMore = false,
                                 discoverResults = visible,
                                 pendingDiscoverResults = pending,
-                                discoverHasMore = if (shouldStopPagination) false else result.data.hasMore,
+                                discoverHasMore = if (shouldStopPagination || emptyReset) false else result.data.hasMore,
                                 discoverPage = if (shouldStopPagination) it.discoverPage else currentPage
                             )
                         }
                         revealBatchAfterNextDiscoverFetch = false
+                        if (willFallback) {
+                            // Launched aside: fetchDiscoverContent cancels discoverJob, and
+                            // this collect runs on that job.
+                            viewModelScope.launch { fallbackToNextDiscoverCatalog() }
+                        }
                     }
                     is NetworkResult.Error -> {
                         revealBatchAfterNextDiscoverFetch = false
@@ -1263,7 +1303,45 @@ class SearchViewModel @Inject constructor(
         preferredKey: String?
     ): DiscoverCatalog? {
         val filtered = catalogs.filter { it.type == selectedType }
-        return filtered.firstOrNull { it.key == preferredKey } ?: filtered.firstOrNull()
+        return filtered.firstOrNull { it.key == preferredKey }
+            // Restyle 3.1: prefer a catalog with content over an (empty) watchlist.
+            ?: filtered.firstOrNull { !it.isWatchlistCatalog() }
+            ?: filtered.firstOrNull()
+    }
+
+    /**
+     * Restyle 3.1: advance the automatic Discover selection to the next untried
+     * catalog of the current type (non-watchlist first), then fetch it. Never
+     * overrides an explicit user pick or a genre-filtered selection; when every
+     * catalog of the type is proven empty, the tab stays empty — honestly.
+     */
+    private fun fallbackToNextDiscoverCatalog() {
+        val state = _uiState.value
+        if (discoverSelectionExplicit || state.selectedDiscoverGenre != null) return
+        val candidates = state.discoverCatalogs.filter {
+            it.type == state.selectedDiscoverType && it.key !in discoverFallbackTriedKeys
+        }
+        val next = candidates.firstOrNull { !it.isWatchlistCatalog() }
+            ?: candidates.firstOrNull()
+        if (next == null) {
+            // Every catalog of this type is proven empty — stop the spinner
+            // so the tab honestly shows «no content».
+            _uiState.update { it.copy(discoverLoading = false) }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                selectedDiscoverCatalogKey = next.key,
+                discoverResults = emptyList(),
+                pendingDiscoverResults = emptyList(),
+                discoverPage = 1,
+                discoverHasMore = true
+            )
+        }
+        viewModelScope.launch {
+            discoverSelectionDataStore.setSelectedCatalogKey(next.key)
+        }
+        fetchDiscoverContent(reset = true)
     }
 
     private fun buildSearchTargets(addons: List<Addon>): List<Pair<Addon, CatalogDescriptor>> {
@@ -1299,4 +1377,14 @@ internal fun resolveDiscoverCatalog(
 ): DiscoverCatalog? =
     catalogs.firstOrNull { it.key == preferredKey }
         ?: catalogs.firstOrNull { it.key == currentKey }
+        // Restyle 3.1: prefer a catalog with content over an (empty) watchlist.
+        ?: catalogs.firstOrNull { !it.isWatchlistCatalog() }
         ?: catalogs.firstOrNull()
+
+/**
+ * Restyle 3.1: a user's own watchlist catalog is empty until they save
+ * something — never a good first pick for a browse tab.
+ */
+internal fun DiscoverCatalog.isWatchlistCatalog(): Boolean =
+    catalogId.contains("watchlist", ignoreCase = true) ||
+        catalogName.contains("watchlist", ignoreCase = true)

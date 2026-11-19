@@ -553,6 +553,18 @@ fun NotflixHomeContent(
                         }
                         repeat(3) { withFrameNanos { } }
                         val identity = "${destination.key}|${destination.tiles.getOrNull(index)?.key ?: "status"}"
+                        // Restyle 3.1: after the column scroll the target tile may not be
+                        // composed yet — its requester registers in a DisposableEffect, and
+                        // a fixed 3-frame wait can expire first on a heavy frame (hero art
+                        // + filter recomposition). Wait for the registration instead of
+                        // calling requestFocus on a node that does not exist yet; while
+                        // the move is unresolved, the disposed card's focus falls back to
+                        // the hero by default restoration.
+                        var waits = 0
+                        while (!requesters.containsKey(identity) && waits < 30) {
+                            withFrameNanos { }
+                            waits++
+                        }
                         if (moves.pending == null) moves.expected = identity
                         moves.acquiring = identity
                         val acquired = requesters[identity]?.let { runCatching { it.requestFocus() }.getOrDefault(false) } == true
@@ -758,6 +770,12 @@ fun NotflixHomeContent(
     val rowOnKey: (Int, NotflixDisplayRow, Int, Key) -> Unit = { rowIndex, row, index, key ->
         navigation.interacted = true
         previewSession?.cancel()
+        // Restyle 3.1: the captured rowIndex goes stale when the genre filter
+        // reshuffles the rows (CW drops out, indices shift) — resolve the row's
+        // CURRENT index by key, or UP from the row below the strip reads an
+        // index that no longer points at it and jumps to the hero instead.
+        val rows = latestRows
+        val currentRowIndex = rows.indexOfFirst { it.key == row.key }.takeIf { it >= 0 } ?: rowIndex
         when (key) {
             Key.DirectionRight, Key.DirectionLeft -> {
                 val step = if ((key == Key.DirectionRight) != rtl) 1 else -1
@@ -765,15 +783,15 @@ fun NotflixHomeContent(
                 // completes. Advance from its pending target, not the old node.
                 val pending = moves.expected?.let { expected -> row.tiles.indexOfFirst { "${row.key}|${it.key}" == expected } }
                     ?.takeIf { it >= 0 } ?: index
-                request(rowIndex, (pending + step).coerceIn(0, row.tiles.lastIndex.coerceAtLeast(0)))
+                request(currentRowIndex, (pending + step).coerceIn(0, row.tiles.lastIndex.coerceAtLeast(0)))
             }
             Key.DirectionUp -> {
-                val previous = (rowIndex - 1 downTo 0).firstOrNull { displayRows[it].tiles.isNotEmpty() || displayRows[it].phase != NotflixRowPhase.READY }
+                val previous = (currentRowIndex - 1 downTo 0).firstOrNull { rows[it].tiles.isNotEmpty() || rows[it].phase != NotflixRowPhase.READY }
                 if (previous == null) { if (hero != null) focusHeroOrFirst() else navigation.focusTop() }
                 else request(previous, index)
             }
-            Key.DirectionDown -> (rowIndex + 1 until displayRows.size)
-                .firstOrNull { displayRows[it].tiles.isNotEmpty() || displayRows[it].phase != NotflixRowPhase.READY }
+            Key.DirectionDown -> (currentRowIndex + 1 until rows.size)
+                .firstOrNull { rows[it].tiles.isNotEmpty() || rows[it].phase != NotflixRowPhase.READY }
                 ?.let { request(it, index) }
             else -> Unit
         }

@@ -116,7 +116,12 @@ fun NotflixPosterGrid(
 
     // TV focus scrolling pins the focused item at a pivot; here it would push the page header out of
     // view on entry. Scroll only as much as needed to show the focused poster.
-    CompositionLocalProvider(LocalBringIntoViewSpec provides NotflixMinimalBringIntoView) {
+    // Restyle 3.1: until the initial focus lands, scroll NOTHING — the initial
+    // focus on the first poster otherwise scrolls the header (e.g. the My Space
+    // Continue-watching title) out of view on entry, and top padding alone
+    // cannot fix it: the scroll grows 1:1 with the padding.
+    CompositionLocalProvider(LocalBringIntoViewSpec provides
+        if (!requestInitialFocus || initialFocusDone) NotflixMinimalBringIntoView else NotflixNoBringIntoView) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns.coerceAtLeast(1)),
         state = state,
@@ -176,4 +181,10 @@ internal val NotflixMinimalBringIntoView: BringIntoViewSpec = object : BringInto
             else -> trailing - containerSize
         }
     }
+}
+
+/** Restyle 3.1: never scrolls — used only until the grid's initial focus lands. */
+@OptIn(ExperimentalFoundationApi::class)
+internal val NotflixNoBringIntoView: BringIntoViewSpec = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }

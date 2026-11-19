@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -369,6 +370,15 @@ internal fun NotflixLibraryPage(
 
             else -> NotflixPosterGrid(
                 items = gridSpecs,
+                // Restyle 3.1: the grid starts under the top bar, so the first
+                // header item (the Continue-watching title) sat behind it —
+                // clear the nav bar like the home hero does (56.dp + room).
+                contentPadding = PaddingValues(
+                    start = Spec.GUTTER.dp,
+                    end = Spec.GUTTER.dp,
+                    top = 64.dp,
+                    bottom = 40.dp
+                ),
                 onClick = { spec ->
                     if (saved) {
                         entriesByKey[spec.key]?.let(actions.onOpen)

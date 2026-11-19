@@ -75,7 +75,11 @@ internal fun NotflixDiscoverContent(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     stringResource(
+                        // Restyle 3.1: while a fetch (or a fallback to the next catalog)
+                        // is running, show loading — not «no content» for a tab that
+                        // is about to fill.
                         if (!uiState.discoverInitialized) R.string.notflix_loading_catalogs
+                        else if (uiState.discoverLoading) R.string.notflix_loading
                         else R.string.notflix_no_content
                     ),
                     color = Spec.Secondary, fontSize = 16.sp

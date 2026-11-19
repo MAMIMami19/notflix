@@ -70,6 +70,20 @@ class SearchPresentationRulesTest {
         assertEquals(current, selected)
     }
 
+    @Test
+    fun `empty watchlist catalog is not the first discover pick`() {
+        val watchlist = discoverCatalog("pikpak_watchlist_movies", "movie")
+        val top = discoverCatalog("top", "movie")
+
+        val selected = resolveDiscoverCatalog(
+            catalogs = listOf(watchlist, top),
+            preferredKey = null,
+            currentKey = null
+        )
+
+        assertEquals(top, selected)
+    }
+
     private fun discoverCatalog(key: String, type: String) = DiscoverCatalog(
         key = key,
         addonId = "addon",

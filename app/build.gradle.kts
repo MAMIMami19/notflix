@@ -148,8 +148,8 @@ android {
         minSdk = 24
         targetSdk = 36
         // Above upstream's 1076 so the restyle line stays ahead of the base it forked from.
-        versionCode = 1079
-        versionName = "1.0.0-beta.4.1-restyle3"
+        versionCode = 1080
+        versionName = "1.0.0-beta.4.1-restyle3.1"
 
         buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${localProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
         buildConfigField("String", "TRAILER_API_URL", "\"${localProperties.getProperty("TRAILER_API_URL", "")}\"")

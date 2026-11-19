@@ -1,5 +1,10 @@
-name: Build Notflix Restyle 3
+name: Build Notflix Restyle 3.1
 
+# Notflix restyle 3.1 (1.0.0-beta.4.1-restyle3.1, vc 1080, com.notflix.tv.custom):
+# fix build for the restyle-3 on-device deficiencies — Discover fallback off
+# the empty PikPak watchlist, strict genre filter, CW/My-list kept while
+# filtered, UP-to-tiles focus fix, My Space CW title, app-locale row type
+# labels, wider top-bar tabs.
 # Notflix restyle 3 (1.0.0-beta.4.1-restyle3, vc 1079, com.notflix.tv.custom):
 # a side-by-side custom build that installs ALONGSIDE upstream Notflix.
 # - Genre strip: 21 unified semi-transparent grey landscape tiles below
@@ -82,9 +87,9 @@ jobs:
           # are invisible to the in-app updater (unauthenticated API calls
           # never see them, and the tag is not a valid version anyway).
           # Delete the draft after the APKs are verified/downloaded.
-          TAG="notflix-restyle3-draft-${{ github.run_number }}"
+          TAG="notflix-restyle3.1-draft-${{ github.run_number }}"
           gh release create "$TAG" \
             --draft \
-            --title "Notflix Restyle 3 draft (CI run ${{ github.run_number }})" \
-            --notes "CI-built Notflix Restyle 3 release APKs (1.0.0-beta.4.1-restyle3, vc 1079, com.notflix.tv.custom): unified grey genre tiles below Continue watching, localized restyle strings (AR/FR), profile-circle fix, Netflix-style tab redesigns. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            --title "Notflix Restyle 3.1 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 3.1 release APKs (1.0.0-beta.4.1-restyle3.1, vc 1080, com.notflix.tv.custom): Discover fallback off the empty PikPak watchlist, strict genre filter, CW/My-list kept while filtered, UP-to-tiles focus fix, My Space CW title, app-locale row type labels, wider top-bar tabs. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk
