@@ -338,7 +338,8 @@ class NotflixLocalizedMetadataTest {
             hiddenTitlesRepository = hiddenTitlesRepository,
             tmdbAvailability = mockk(relaxed = true),
             tvRecommendationManager = mockk(relaxed = true),
-            serverCatalog = mockk(relaxed = true)
+            serverCatalog = mockk(relaxed = true),
+            tasteStore = mockk(relaxed = true)
         )
         viewModel.startupGracePeriodActive = false
         viewModel.externalMetaPrefetchEnabled = false

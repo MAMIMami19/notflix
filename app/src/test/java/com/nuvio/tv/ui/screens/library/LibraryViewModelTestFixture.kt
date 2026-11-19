@@ -73,6 +73,7 @@ internal class LibraryViewModelTestFixture(sorter: TrackingLibrarySorter? = null
         watchedSeriesStateHolder = mockk<WatchedSeriesStateHolder> { every { fullyWatchedSeriesIds } returns MutableStateFlow(emptySet()) },
         profileManager = mockk<ProfileManager> { every { activeProfileId } returns profile },
         ageGate = disabledAgeGate(),
-        posterOptions = mockk(relaxed = true), context = mockk(relaxed = true)
+        posterOptions = mockk(relaxed = true), context = mockk(relaxed = true),
+        tasteStore = mockk(relaxed = true)
     )
 }

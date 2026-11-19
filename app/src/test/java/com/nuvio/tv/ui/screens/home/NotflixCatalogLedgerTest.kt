@@ -158,7 +158,8 @@ class NotflixCatalogLedgerTest {
             profileManager = manager, tvRecommendationManager = mockk(relaxed = true),
             ageGate = disabledAgeGate(), tmdbAvailability = mockk(relaxed = true),
             hiddenTitlesRepository = hiddenTitlesRepository,
-            serverCatalog = mockk(relaxed = true)
+            serverCatalog = mockk(relaxed = true),
+            tasteStore = mockk(relaxed = true)
         )
     }
 }

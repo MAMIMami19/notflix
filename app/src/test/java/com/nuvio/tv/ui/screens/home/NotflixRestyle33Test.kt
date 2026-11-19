@@ -6,6 +6,8 @@ import com.nuvio.tv.domain.model.CollectionFolder
 import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.PosterShape
+import com.nuvio.tv.domain.model.legacyKey
+import com.nuvio.tv.domain.model.stableKey
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.Instant
