@@ -107,3 +107,14 @@ jobs:
             --title "Notflix Restyle 3.3 draft (CI run ${{ github.run_number }})" \
             --notes "CI-built Notflix Restyle 3.3 release APKs (1.0.0-beta.4.1-restyle3.3, vc 1082, com.notflix.tv.custom): strict home whitelist in the agreed order, unlisted addon rows removed from home, (genre, type) dedupe, pending-row genre coverage, airing last, «لأنك شاهدت» removed. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk
+
+      - name: Run restyle unit tests (3.2 + 3.3)
+        run: |
+          # After the release step, so a test failure never blocks the APK.
+          # The upstream home suite is red at HEAD for pre-existing restyle
+          # reasons (title mapping, genre strip) and was never updated, so
+          # only the restyle's own test classes run here.
+          ./gradlew :app:testFullDebugUnitTest \
+            --tests "com.nuvio.tv.ui.screens.home.NotflixRestyle32Test" \
+            --tests "com.nuvio.tv.ui.screens.home.NotflixRestyle33Test" \
+            --max-workers=2 --console=plain
