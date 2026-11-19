@@ -25,7 +25,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
@@ -84,6 +87,36 @@ private const val NOTFLIX_KEY_COLUMNS = 6
 private const val NOTFLIX_TITLE_LOOKUPS = 96
 private const val NOTFLIX_PLACEHOLDER_PREFIX = "__placeholder_"
 private val NotflixSearchKeys: List<Char> = ('A'..'Z') + ('0'..'9')
+/** Restyle 3: the Arabic keyboard (the app's Arabic locale) — the full
+ *  alphabet with hamza variants + Western digits. */
+private val NotflixSearchKeysAr: List<Char> = listOf(
+    'أ', 'ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز',
+    'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل',
+    'م', 'ن', 'ه', 'و', 'ي', 'ة', 'ى', 'إ', 'آ', 'ؤ', 'ئ', 'ء'
+) + ('0'..'9')
+
+/** Restyle 3: the quick categories (Netflix-style) — each opens that
+ *  genre's dedicated browse screen. */
+private data class NotflixSearchCategory(@androidx.annotation.StringRes val titleRes: Int, val genreTag: String)
+
+private val NotflixSearchCategories = listOf(
+    NotflixSearchCategory(R.string.notflix_searchcat_holidays, "holidays"),
+    NotflixSearchCategory(R.string.notflix_searchcat_comedy, "comedy"),
+    NotflixSearchCategory(R.string.notflix_searchcat_action, "action"),
+    NotflixSearchCategory(R.string.notflix_searchcat_kids_family, "kids_family"),
+    NotflixSearchCategory(R.string.notflix_searchcat_horror, "horror"),
+    NotflixSearchCategory(R.string.notflix_searchcat_documentary, "documentary"),
+    NotflixSearchCategory(R.string.notflix_searchcat_thrilling, "thrilling"),
+    NotflixSearchCategory(R.string.notflix_searchcat_drama, "drama"),
+    NotflixSearchCategory(R.string.notflix_searchcat_arabic, "arabic"),
+    NotflixSearchCategory(R.string.notflix_searchcat_reality, "reality"),
+    NotflixSearchCategory(R.string.notflix_searchcat_books, "books_on_screen"),
+    NotflixSearchCategory(R.string.notflix_searchcat_anime, "anime"),
+    NotflixSearchCategory(R.string.notflix_searchcat_sci_fi, "sci_fi"),
+    NotflixSearchCategory(R.string.notflix_searchcat_romance, "romance"),
+    NotflixSearchCategory(R.string.notflix_searchcat_sports, "sports"),
+    NotflixSearchCategory(R.string.notflix_searchcat_astrology, "astrology")
+)
 
 /**
  * One unified list for every catalog row; placeholder skeletons never leak into the results grid.
@@ -155,6 +188,8 @@ fun NotflixSearchContent(
     onItemSelected: (MetaPreview) -> Unit = {},
     localizedTitles: Map<String, String> = emptyMap(),
     onRequestTitles: (List<MetaPreview>) -> Unit = {},
+    /** Restyle 3: a quick category opens that genre's browse screen. */
+    onCategoryClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val trimmedQuery = query.trim()
@@ -165,7 +200,14 @@ fun NotflixSearchContent(
     val hasPendingQuery = hasValidQuery && trimmedQuery != submittedQuery.trim()
     val showSkeletons = (isSearching || hasPendingQuery) && results.isEmpty()
 
-    val keyRequesters = remember { List(NotflixSearchKeys.size + 2) { FocusRequester() } }
+    // Restyle 3: the keyboard follows the app language — Arabic keys when
+    // the app is Arabic (the locale only changes on restart, so once is
+    // enough).
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val searchKeys = remember(locale) {
+        if (locale.language == "ar") NotflixSearchKeysAr else NotflixSearchKeys
+    }
+    val keyRequesters = remember(searchKeys) { List(searchKeys.size + 2) { FocusRequester() } }
     val firstResultRequester = remember { FocusRequester() }
     val resultsGridState = rememberLazyGridState()
     val discoverGridState = rememberLazyGridState()
@@ -251,6 +293,7 @@ fun NotflixSearchContent(
             }
 
             NotflixKeyboard(
+                keys = searchKeys,
                 requesters = keyRequesters,
                 onFocused = { lastFocusedKey = it },
                 onCharacter = { onQueryChange(query + it) },
@@ -279,7 +322,8 @@ fun NotflixSearchContent(
                     onItemFocused = onItemFocused,
                     onItemSelected = onItemSelected,
                     onNavigateToDetail = onNavigateToDetail,
-                    localizedTitles = localizedTitles
+                    localizedTitles = localizedTitles,
+                    onCategoryClick = onCategoryClick
                 )
             } else {
                 NotflixSearchResults(
@@ -303,6 +347,7 @@ fun NotflixSearchContent(
 
 @Composable
 private fun NotflixKeyboard(
+    keys: List<Char>,
     requesters: List<FocusRequester>,
     onFocused: (Int) -> Unit,
     onCharacter: (Char) -> Unit,
@@ -311,13 +356,15 @@ private fun NotflixKeyboard(
     onClear: () -> Unit,
     onRightEdge: () -> Boolean
 ) {
-    val spaceIndex = NotflixSearchKeys.size
-    val backspaceIndex = NotflixSearchKeys.size + 1
+    val spaceIndex = keys.size
+    val backspaceIndex = keys.size + 1
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        // Restyle 3: the Arabic layout is taller than the Latin one; scroll
+        // so the last rows stay reachable (focus scrolls into view).
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        NotflixSearchKeys.chunked(NOTFLIX_KEY_COLUMNS).forEachIndexed { rowIndex, row ->
+        keys.chunked(NOTFLIX_KEY_COLUMNS).forEachIndexed { rowIndex, row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -462,7 +509,8 @@ private fun NotflixSearchStart(
     onItemFocused: (MetaPreview) -> Unit,
     onItemSelected: (MetaPreview) -> Unit,
     onNavigateToDetail: (String, String, String) -> Unit,
-    localizedTitles: Map<String, String> = emptyMap()
+    localizedTitles: Map<String, String> = emptyMap(),
+    onCategoryClick: (String) -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (recentSearches.isNotEmpty()) {
@@ -478,6 +526,22 @@ private fun NotflixSearchStart(
                         onClick = { onRecentSearchClick(recent) }
                     )
                 }
+            }
+        }
+        // Restyle 3: the quick categories (Netflix-style) — a scrollable
+        // chip row; each opens that genre's poster grid.
+        Spacer(modifier = Modifier.height(if (recentSearches.isEmpty()) 0.dp else 18.dp))
+        NotflixSectionTitle(stringResource(R.string.notflix_search_categories))
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(NotflixSearchCategories, key = { it.genreTag }) { category ->
+                NotflixRecentChip(
+                    text = stringResource(category.titleRes),
+                    tag = "notflix-search-category-${category.genreTag}",
+                    onClick = { onCategoryClick(category.genreTag) }
+                )
             }
         }
         if (discoverResults.isNotEmpty()) {

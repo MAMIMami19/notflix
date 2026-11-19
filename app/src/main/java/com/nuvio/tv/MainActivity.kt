@@ -582,6 +582,14 @@ open class MainActivity : ComponentActivity() {
 
             LaunchedEffect(authState, profiles) {
                 if (authState is AuthState.FullAccount) {
+                    // Restyle 3: the Custom app is a fresh package with its
+                    // own empty profile store — only the local default
+                    // profile exists until the server list is pulled. Force
+                    // one pull while the list is still a single profile, so
+                    // the account's profiles arrive and the switcher has
+                    // something to switch to. Runs at most until the pull
+                    // succeeds once (the list then grows past 1).
+                    if (profiles.size <= 1) profileSyncService.pullFromRemote(force = true)
                     profileSyncService.pullProfileLockStates()
                         .onSuccess { profilePinStates = it }
                         .onFailure { profilePinStates = emptyMap() }
@@ -1461,9 +1469,16 @@ open class MainActivity : ComponentActivity() {
                                             )
                                         },
                                         contentFocusRequester = contentFocusRequester,
-                                        // Restyle 2: the profile CIRCLE —
+                                        // Restyle 3: the profile CIRCLE —
                                         // avatar + color, not the name text.
-                                        profile = activeProfile?.takeIf { profiles.size > 1 }?.let {
+                                        // It renders whenever an active
+                                        // profile exists (Netflix shows the
+                                        // avatar even with a single
+                                        // profile); the old "> 1 profile"
+                                        // gate hid it in the Custom app,
+                                        // whose local store starts with
+                                        // only the default profile.
+                                        profile = activeProfile?.let {
                                             NotflixProfileChip(
                                                 name = it.name,
                                                 colorHex = it.avatarColorHex ?: "#1E88E5",

@@ -92,6 +92,7 @@ class HomeViewModel @Inject constructor(
     internal val tmdbAvailability: com.nuvio.tv.core.profile.TmdbAvailability,
     internal val tvRecommendationManager: TvRecommendationManager,
     internal val serverCatalog: ServerCatalog,
+    internal val tasteStore: com.nuvio.tv.data.local.NotflixTasteDataStore,
     internal val metaPreviewEnricher: MetaPreviewEnricher = MetaPreviewEnricher(
         tmdbService,
         tmdbMetadataService,
@@ -702,6 +703,19 @@ class HomeViewModel @Inject constructor(
     )
 
     fun onItemFocus(item: MetaPreview) = onItemFocusPipeline(item)
+
+    /** Restyle 3: log a watched trailer for the My Space trailers row. */
+    fun recordTrailerWatched(item: MetaPreview) {
+        viewModelScope.launch {
+            tasteStore.recordTrailer(
+                com.nuvio.tv.data.local.NotflixTasteEntry(
+                    key = "${item.apiType}:${item.id}", type = item.apiType, name = item.name,
+                    poster = item.poster, backdrop = item.backdropUrl,
+                    rating = null, at = System.currentTimeMillis()
+                )
+            )
+        }
+    }
 
     fun preloadAdjacentItem(item: MetaPreview) = preloadAdjacentItemPipeline(item)
 

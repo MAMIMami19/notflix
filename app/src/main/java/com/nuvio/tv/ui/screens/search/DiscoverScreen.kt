@@ -42,7 +42,9 @@ fun DiscoverScreen(
     /** Restyle 2: the top-bar Series/Movies tabs pre-select their type
      *  ("series" / "movie"); null keeps the default Discover behaviour. */
     initialType: String? = null,
-    onNavigateToDetail: (String, String, String) -> Unit
+    onNavigateToDetail: (String, String, String) -> Unit,
+    /** Restyle 3: the tab hero's Play button — detail with playOnLoad. */
+    onPlayItem: (com.nuvio.tv.domain.model.MetaPreview) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()
@@ -105,6 +107,23 @@ fun DiscoverScreen(
                 title = stringResource(R.string.discover_disabled_title),
                 subtitle = stringResource(R.string.discover_disabled_subtitle),
                 icon = Icons.Default.Search
+            )
+        } else if (com.nuvio.tv.ui.appearance.LocalNotflixPresentation.current.active && initialType != null) {
+            // Restyle 3: the Movies / Series tabs get the Netflix treatment
+            // (hero + rows). The plain Discover route keeps the official
+            // grid + filters byte-for-byte.
+            NotflixDiscoverContent(
+                uiState = uiState,
+                onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
+                    pendingDiscoverRestoreOnResume = true
+                    onNavigateToDetail(itemId, itemType, addonBaseUrl)
+                },
+                onPlayItem = onPlayItem,
+                onItemFocused = { item -> viewModel.prefetchMetaOnFocus(item.id, item.rawType) },
+                onItemLongPress = { item, addonBaseUrl ->
+                    viewModel.posterOptions.show(item, addonBaseUrl)
+                },
+                onLoadMore = { viewModel.onEvent(SearchEvent.LoadNextDiscoverResults) }
             )
         } else {
             DiscoverSection(

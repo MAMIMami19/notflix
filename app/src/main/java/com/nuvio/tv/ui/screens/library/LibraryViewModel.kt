@@ -39,6 +39,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.nuvio.tv.R
@@ -174,12 +176,26 @@ class LibraryViewModel @Inject constructor(
     private val watchedSeriesStateHolder: com.nuvio.tv.data.local.WatchedSeriesStateHolder,
     private val profileManager: com.nuvio.tv.core.profile.ProfileManager,
     private val ageGate: com.nuvio.tv.core.profile.ActiveProfileAgeGate,
+    private val tasteStore: com.nuvio.tv.data.local.NotflixTasteDataStore,
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
+
+    /** Restyle 3: the My Space trailers + liked sections (taste store). */
+    val trailerHistory: StateFlow<List<com.nuvio.tv.data.local.NotflixTasteEntry>> =
+        tasteStore.trailerHistory.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val likedTitles: StateFlow<List<com.nuvio.tv.data.local.NotflixTasteEntry>> =
+        tasteStore.ratedTitles
+            .map { rated ->
+                rated.filter {
+                    it.rating == com.nuvio.tv.data.local.NotflixUserRating.LIKE.name ||
+                        it.rating == com.nuvio.tv.data.local.NotflixUserRating.LOVE.name
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _watchedMovieIds = MutableStateFlow<Set<String>>(emptySet())
     val watchedMovieIds: StateFlow<Set<String>> = _watchedMovieIds.asStateFlow()

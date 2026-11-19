@@ -50,7 +50,10 @@ internal fun NotflixDetailStage(
     onPanelFocusChanged: (Boolean) -> Unit,
     hero: @Composable () -> Unit,
     seasons: @Composable () -> Unit,
-    episodes: @Composable () -> Unit
+    episodes: @Composable () -> Unit,
+    /** Restyle 3: the movie info column (cast + creators) that fills the
+     *  right side where series have the episode panel. */
+    info: (@Composable () -> Unit)? = null
 ) {
     // Focus relocation may leave an unconsumed delta when the inner list reaches
     // its edge. Keep that side effect inside the panel's viewport; moving focus
@@ -85,9 +88,58 @@ internal fun NotflixDetailStage(
                     seasons()
                     Box(Modifier.weight(1f).fillMaxWidth()) { episodes() }
                 }
+            } else if (info != null) {
+                // Restyle 3: movies get the Netflix-style info column
+                // (cast + creators) where series have the episode panel.
+                val shape = RoundedCornerShape(8.dp)
+                Column(Modifier.width(300.dp).fillMaxHeight()
+                    .background(NotflixVisualSpec.Surface.copy(alpha = .82f), shape)
+                    .border(1.dp, Color.White.copy(alpha = .10f), shape)
+                    .padding(16.dp)
+                    .testTag("notflix_detail_info_panel")) {
+                    info()
+                }
             } else {
                 // Sources retain their official screen; no placeholder provider panel.
                 Spacer(Modifier.width(300.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Restyle 3: the movie info column — the full cast (كادر الممثلين) and the
+ * creators (التأليف), Netflix-style, in the right-side panel. Static
+ * information, like Netflix's own column: nothing here takes focus.
+ */
+@Composable
+internal fun NotflixDetailInfoColumn(meta: com.nuvio.tv.domain.model.Meta) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        val cast = meta.cast.ifEmpty { meta.castMembers.map { it.name } }
+        if (cast.isNotEmpty()) {
+            Text(stringResource(R.string.notflix_detail_cast), fontFamily = NotflixVisualSpec.BodyFont,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = NotflixVisualSpec.Text)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                cast.take(12).forEach { person ->
+                    Text(person, fontFamily = NotflixVisualSpec.BodyFont, fontSize = 12.sp,
+                        color = NotflixVisualSpec.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        val directors = meta.director.filter { it.isNotBlank() }
+        val writers = meta.writer.filter { it.isNotBlank() }
+        if (directors.isNotEmpty() || writers.isNotEmpty()) {
+            Text(stringResource(R.string.notflix_detail_creators), fontFamily = NotflixVisualSpec.BodyFont,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = NotflixVisualSpec.Text)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                directors.forEach { person ->
+                    Text(person, fontFamily = NotflixVisualSpec.BodyFont, fontSize = 12.sp,
+                        color = NotflixVisualSpec.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                writers.forEach { person ->
+                    Text(person, fontFamily = NotflixVisualSpec.BodyFont, fontSize = 12.sp,
+                        color = NotflixVisualSpec.Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

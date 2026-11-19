@@ -12,13 +12,43 @@ internal fun HomeViewModel.notflixSnapshot(
 ): NotflixCatalogSnapshot {
     configureNotflixCollectionRows()
     val scopedCollections = if (notflixCollectionsProfile == captured.context) collections else emptyList()
+    // Restyle 3: the Netflix-style theme titles follow the app language
+    // (Arabic by default, French when French).
+    val themeTitles = NotflixThemeTitles(
+        trending = appContext.getString(R.string.notflix_theme_trending),
+        popular = appContext.getString(R.string.notflix_theme_popular),
+        topRated = appContext.getString(R.string.notflix_theme_top_rated),
+        featured = appContext.getString(R.string.notflix_theme_featured),
+        new = appContext.getString(R.string.notflix_theme_new),
+        watchlist = appContext.getString(R.string.notflix_theme_watchlist),
+        calendar = appContext.getString(R.string.notflix_theme_calendar),
+        recentlyWatched = appContext.getString(R.string.notflix_theme_recently_watched),
+        hintMovies = appContext.getString(R.string.notflix_theme_hint_movies),
+        hintSeries = appContext.getString(R.string.notflix_theme_hint_series)
+    )
     return projectNotflixCatalogs(captured, ordered, fullRows, scopedCollections, disabledHomeCatalogKeys,
         customCatalogTitles, synchronized(catalogStateLock) { placeholderDescriptors.toList() },
         _uiState.value.catalogTypeSuffixEnabled, appContext.getString(R.string.type_movie),
         appContext.getString(R.string.type_series), notflixCollectionRows.snapshot(),
-        kidsHome = isKidsAgeLimit(ageGate.currentLimit()))
+        kidsHome = isKidsAgeLimit(ageGate.currentLimit()), themeTitles = themeTitles)
         .copy(collectionRowsKnown = _uiState.value.notflixPresentationActive && notflixCollectionsProfile == captured.context)
 }
+
+/** Restyle 3: localized Netflix-style theme titles for the stock catalog
+ *  rows. Resolved once per snapshot from the app locale; null falls back
+ *  to the Arabic literals (unit tests, which pass no titles). */
+internal data class NotflixThemeTitles(
+    val trending: String,
+    val popular: String,
+    val topRated: String,
+    val featured: String,
+    val new: String,
+    val watchlist: String,
+    val calendar: String,
+    val recentlyWatched: String,
+    val hintMovies: String,
+    val hintSeries: String
+)
 
 /** Presentation over captured official inputs only; never reads/writes preferences or starts a load. */
 internal fun projectNotflixCatalogs(
@@ -26,7 +56,8 @@ internal fun projectNotflixCatalogs(
     disabled: Set<String>, customTitles: Map<String, String>, descriptors: List<HomeViewModel.PlaceholderDescriptor>,
     showTypeSuffix: Boolean, movieLabel: String, seriesLabel: String,
     projectedFolders: List<NotflixCatalogRow> = emptyList(),
-    kidsHome: Boolean = false
+    kidsHome: Boolean = false,
+    themeTitles: NotflixThemeTitles? = null
 ): NotflixCatalogSnapshot {
     val filtered = fullRows.associateBy { it.legacyKey() }
     val names = descriptors.associateBy { it.catalogKey }
@@ -42,7 +73,7 @@ internal fun projectNotflixCatalogs(
             // Restyle: Netflix-style Arabic titles for the stock theme rows;
             // a custom title (or an unmapped name) passes through untouched.
             val displayName = if (customTitles[row.loadKey].isNullOrBlank()) {
-                notflixNetflixTitleForCatalog(name) ?: name
+                notflixNetflixTitleForCatalog(name, themeTitles) ?: name
             } else name
             val suffix = when (type.lowercase()) {
                 "movie" -> movieLabel.ifBlank { type.replaceFirstChar { it.uppercase() } }
@@ -74,27 +105,29 @@ internal fun projectNotflixCatalogs(
 }
 
 /**
- * Restyle: Netflix-style Arabic titles for the stock theme rows. Only the
- * theme word is mapped; a movies/series hint is kept when the catalog name
- * carries one, so «Trending Movies» and «Trending Series» stay distinct.
- * Anything unmapped returns null and keeps its original name.
+ * Restyle: Netflix-style titles for the stock theme rows, in the app
+ * language ([titles], resolved from resources; null falls back to the
+ * Arabic literals). Only the theme word is mapped; a movies/series hint
+ * is kept when the catalog name carries one, so «Trending Movies» and
+ * «Trending Series» stay distinct. Anything unmapped returns null and
+ * keeps its original name.
  */
-internal fun notflixNetflixTitleForCatalog(name: String): String? {
+internal fun notflixNetflixTitleForCatalog(name: String, titles: NotflixThemeTitles? = null): String? {
     val tokens = name.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }.toSet()
     val theme = when {
-        "trending" in tokens -> "الأكثر رواجاً الآن"
-        "popular" in tokens -> "رائج الآن"
-        ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> "الأعلى تقييماً"
-        "featured" in tokens -> "مختارات"
-        "new" in tokens -> "جديد"
-        "watchlist" in tokens -> "قائمة المشاهدة"
-        "calendar" in tokens -> "التقويم"
-        ("last" in tokens && "videos" in tokens) || "recently" in tokens -> "شوهد مؤخراً"
+        "trending" in tokens -> titles?.trending ?: "الأكثر رواجاً الآن"
+        "popular" in tokens -> titles?.popular ?: "رائج الآن"
+        ("top" in tokens && "rated" in tokens) || "toprated" in tokens -> titles?.topRated ?: "الأعلى تقييماً"
+        "featured" in tokens -> titles?.featured ?: "مختارات"
+        "new" in tokens -> titles?.new ?: "جديد"
+        "watchlist" in tokens -> titles?.watchlist ?: "قائمة المشاهدة"
+        "calendar" in tokens -> titles?.calendar ?: "التقويم"
+        ("last" in tokens && "videos" in tokens) || "recently" in tokens -> titles?.recentlyWatched ?: "شوهد مؤخراً"
         else -> return null
     }
     val typeHint = when {
-        tokens.intersect(setOf("movie", "movies", "film", "films")).isNotEmpty() -> " · أفلام"
-        tokens.intersect(setOf("series", "tv", "show", "shows")).isNotEmpty() -> " · مسلسلات"
+        tokens.intersect(setOf("movie", "movies", "film", "films")).isNotEmpty() -> titles?.hintMovies ?: " · أفلام"
+        tokens.intersect(setOf("series", "tv", "show", "shows")).isNotEmpty() -> titles?.hintSeries ?: " · مسلسلات"
         else -> ""
     }
     return theme + typeHint

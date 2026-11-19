@@ -72,6 +72,11 @@ import com.nuvio.tv.domain.model.LibrarySourceMode
 import com.nuvio.tv.domain.model.PosterShape
 import com.nuvio.tv.domain.model.localizedTitle
 import com.nuvio.tv.ui.appearance.LocalNotflixPresentation
+import com.nuvio.tv.ui.screens.home.NotflixDisplayRow
+import com.nuvio.tv.ui.screens.home.NotflixRowPhase
+import com.nuvio.tv.ui.screens.home.NotflixSimpleRow
+import com.nuvio.tv.ui.screens.home.notflixCwTiles
+import com.nuvio.tv.ui.screens.home.notflixTasteTiles
 import com.nuvio.tv.ui.appearance.notflix.NotflixChip
 import com.nuvio.tv.ui.appearance.notflix.NotflixFlatButton
 import com.nuvio.tv.ui.appearance.notflix.NotflixFocusHeader
@@ -148,11 +153,43 @@ internal fun NotflixLibraryPage(
     actions: NotflixLibraryActions,
     onNavigateToHome: () -> Unit,
     resolvingCloudFileKey: String?,
-    onCloudItemClick: (CloudLibraryItem) -> Unit
+    onCloudItemClick: (CloudLibraryItem) -> Unit,
+    /** Restyle 3: the My Space sections above My List. */
+    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList(),
+    trailerHistory: List<com.nuvio.tv.data.local.NotflixTasteEntry> = emptyList(),
+    likedTitles: List<com.nuvio.tv.data.local.NotflixTasteEntry> = emptyList(),
+    onOpenTitle: (String, String) -> Unit = { _, _ -> }
 ) {
     val navigation = LocalNotflixPresentation.current.navigation
     val scope = rememberCoroutineScope()
     val saved = viewMode == LibraryViewMode.Saved
+    // Restyle 3: the My Space sections above My List — Continue Watching
+    // (wide cards with red progress bars), the trailers he watched, and
+    // the titles he liked. Each row only appears when it has content.
+    val cwTitle = stringResource(R.string.notflix_continue_watching)
+    val trailersTitle = stringResource(R.string.notflix_myspace_trailers)
+    val likedTitle = stringResource(R.string.notflix_myspace_liked)
+    val episodePattern = stringResource(R.string.notflix_episode)
+    val cwRow = remember(continueWatchingItems, cwTitle, episodePattern) {
+        val tiles = notflixCwTiles(continueWatchingItems, episodePattern)
+        if (tiles.isEmpty()) null else NotflixDisplayRow(
+            "myspace-cw", "myspace-cw", cwTitle, NotflixRowPhase.READY, tiles, wide = true)
+    }
+    val trailersRow = remember(trailerHistory, trailersTitle) {
+        val tiles = notflixTasteTiles(trailerHistory, "myspace-trailers")
+        if (tiles.isEmpty()) null else NotflixDisplayRow(
+            "myspace-trailers", "myspace-trailers", trailersTitle, NotflixRowPhase.READY, tiles)
+    }
+    val likedRow = remember(likedTitles, likedTitle) {
+        val tiles = notflixTasteTiles(likedTitles, "myspace-liked")
+        if (tiles.isEmpty()) null else NotflixDisplayRow(
+            "myspace-liked", "myspace-liked", likedTitle, NotflixRowPhase.READY, tiles)
+    }
+    /** Section tiles carry "type:id" as their canonical key. */
+    fun openSectionTile(tile: com.nuvio.tv.ui.screens.home.NotflixTile) {
+        val parts = tile.canonical.split(":", limit = 2)
+        if (parts.size == 2) onOpenTitle(parts[1], parts[0])
+    }
     val specs = remember(state.visibleItems, watchedMovieIds, watchedSeriesIds, saved) {
         if (!saved) {
             emptyList()
@@ -352,6 +389,24 @@ internal fun NotflixLibraryPage(
                     null
                 },
                 header = {
+                    // Restyle 3: the My Space sections above My List.
+                    if (saved) {
+                        cwRow?.let { row ->
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                NotflixSimpleRow(row = row, onOpen = ::openSectionTile)
+                            }
+                        }
+                        trailersRow?.let { row ->
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                NotflixSimpleRow(row = row, onOpen = ::openSectionTile)
+                            }
+                        }
+                        likedRow?.let { row ->
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                NotflixSimpleRow(row = row, onOpen = ::openSectionTile)
+                            }
+                        }
+                    }
                     // Promoter (08-11): no focused-title header on list pages; title and grid only.
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         NotflixLibraryTitleRow(
@@ -1059,12 +1114,17 @@ internal fun NotflixLibraryScreen(
     onInternalCloudPlayback: (CloudLibraryPlaybackInfo) -> Unit,
     onExternalCloudPlayback: (CloudLibraryPlaybackInfo) -> Unit,
     onNavigateToDetail: (String, String, String?) -> Unit,
-    onNavigateToHome: () -> Unit
+    onNavigateToHome: () -> Unit,
+    /** Restyle 3: My Space shows Continue Watching (shared HomeViewModel). */
+    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()
     val watchedSeriesIds by viewModel.watchedSeriesIds.collectAsState()
     val posterOptionsState by viewModel.posterOptions.state.collectAsState()
+    // Restyle 3: the My Space trailers + liked sections (taste store).
+    val trailerHistory by viewModel.trailerHistory.collectAsState()
+    val likedTitles by viewModel.likedTitles.collectAsState()
     var showDeleteConfirm by remember(uiState.showManageDialog) { mutableStateOf(false) }
     var activeCloudItem by remember { mutableStateOf<CloudLibraryItem?>(null) }
     var pendingCloudPlayback by remember { mutableStateOf<CloudLibraryPlaybackInfo?>(null) }
@@ -1127,7 +1187,12 @@ internal fun NotflixLibraryScreen(
                 1 -> viewModel.resolveCloudPlayback(item, playableFiles.first(), routeCloudPlayback)
                 else -> activeCloudItem = item
             }
-        }
+        },
+        // Restyle 3: the My Space sections above My List.
+        continueWatchingItems = continueWatchingItems,
+        trailerHistory = trailerHistory,
+        likedTitles = likedTitles,
+        onOpenTitle = { id, type -> onNavigateToDetail(id, type, null) }
     )
 
     if (uiState.showManageDialog && uiState.listManagement != null) {

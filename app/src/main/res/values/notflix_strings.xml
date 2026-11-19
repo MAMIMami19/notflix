@@ -24,23 +24,93 @@
     <string name="notflix_episode">S%1$s · E%2$s</string>
     <string name="notflix_loading_catalogs">Loading catalogs…</string>
     <string name="notflix_no_content">No content available</string>
-    <string name="notflix_genre_empty">No results for «%1$s» — try another genre</string>
-    <!-- Restyle 2: Netflix-style top bar + genre-section tabs. -->
-    <string name="notflix_tab_series_programs">Series &amp; Programs</string>
-    <string name="notflix_my_space">My Space</string>
-    <string name="notflix_genre_section_all">All</string>
-    <string name="notflix_genre_section_new_movies">New movies</string>
-    <string name="notflix_genre_section_new_series">New series</string>
-    <string name="notflix_genre_section_popular_movies">Popular movies</string>
-    <string name="notflix_genre_section_popular_series">Popular series</string>
-    <string name="notflix_genre_section_top_movies">Top movies</string>
-    <string name="notflix_genre_section_top_series">Top series</string>
-    <string name="notflix_genre_section_top_year_movies">Best movies of the year</string>
-    <string name="notflix_genre_section_top_year_series">Best series of the year</string>
+    <string name="notflix_genre_empty">لا توجد نتائج لـ «%1$s» — جرّب تصنيفاً آخر</string>
+    <!-- Restyle 2: Netflix-style top bar + genre-section tabs. Restyle 3: the
+         default locale is Arabic (French when the app is French, Arabic
+         otherwise), so the restyle strings default to Arabic here. -->
+    <string name="notflix_tab_series_programs">مسلسلات وبرامج</string>
+    <string name="notflix_my_space">مساحتي</string>
+    <string name="notflix_genre_section_all">الكل</string>
+    <string name="notflix_genre_section_new_movies">أفلام جديدة</string>
+    <string name="notflix_genre_section_new_series">مسلسلات جديدة</string>
+    <string name="notflix_genre_section_popular_movies">أفلام رائجة</string>
+    <string name="notflix_genre_section_popular_series">مسلسلات رائجة</string>
+    <string name="notflix_genre_section_top_movies">أفضل الأفلام</string>
+    <string name="notflix_genre_section_top_series">أفضل المسلسلات</string>
+    <string name="notflix_genre_section_top_year_movies">أفضل أفلام العام</string>
+    <string name="notflix_genre_section_top_year_series">أفضل مسلسلات العام</string>
+    <!-- Restyle 3: the 21 genre names, localized (was hardcoded Arabic in
+         NotflixGenreStrip.kt). -->
+    <string name="notflix_genre_mood">مزاج</string>
+    <string name="notflix_genre_comedy">كوميديا</string>
+    <string name="notflix_genre_fantasy">فانتازيا</string>
+    <string name="notflix_genre_youth_stories">قصص شبابية للأبد</string>
+    <string name="notflix_genre_sci_fi">خيال علمي</string>
+    <string name="notflix_genre_holidays">موسم الأعياد</string>
+    <string name="notflix_genre_books_on_screen">كتبك المفضلة على الشاشة</string>
+    <string name="notflix_genre_romance">رومانسي</string>
+    <string name="notflix_genre_reality">واقعي</string>
+    <string name="notflix_genre_kids_family">الأطفال والعائلة</string>
+    <string name="notflix_genre_animation">رسوم متحركة</string>
+    <string name="notflix_genre_anime">أنيمي</string>
+    <string name="notflix_genre_documentary">وثائقيات</string>
+    <string name="notflix_genre_astrology">علم التنجيم</string>
+    <string name="notflix_genre_wwe">WWE</string>
+    <string name="notflix_genre_improv">ارتجالي</string>
+    <string name="notflix_genre_new_worthy">الجديد والجدير بالمشاهدة</string>
+    <string name="notflix_genre_crime">جريمة</string>
+    <string name="notflix_genre_action">أكشن</string>
+    <string name="notflix_genre_drama">دراما</string>
+    <string name="notflix_genre_thrilling">أعمال مشوقة</string>
+    <!-- Restyle 3: search-only categories (not in the home strip). -->
+    <string name="notflix_genre_horror">رعب</string>
+    <string name="notflix_genre_sports">رياضة</string>
+    <string name="notflix_genre_arabic">أعمال عربية</string>
+    <string name="notflix_genres_title">التصنيفات</string>
+    <!-- Restyle 3: Netflix-style theme titles for the stock catalog rows
+         (was hardcoded Arabic in NotflixHomePipeline.kt). -->
+    <string name="notflix_theme_trending">الأكثر رواجاً الآن</string>
+    <string name="notflix_theme_popular">رائج الآن</string>
+    <string name="notflix_theme_top_rated">الأعلى تقييماً</string>
+    <string name="notflix_theme_featured">مختارات</string>
+    <string name="notflix_theme_new">جديد</string>
+    <string name="notflix_theme_watchlist">قائمة المشاهدة</string>
+    <string name="notflix_theme_calendar">التقويم</string>
+    <string name="notflix_theme_recently_watched">شوهد مؤخراً</string>
+    <string name="notflix_theme_hint_movies"> · أفلام</string>
+    <string name="notflix_theme_hint_series"> · مسلسلات</string>
+    <!-- Restyle 3: search quick categories (Netflix-style). -->
+    <string name="notflix_search_categories">تصنيفات سريعة</string>
+    <string name="notflix_searchcat_holidays">حكايات موسم الأعياد</string>
+    <string name="notflix_searchcat_comedy">أعمال كوميدية</string>
+    <string name="notflix_searchcat_action">حركة</string>
+    <string name="notflix_searchcat_kids_family">أعمال للأطفال والعائلة</string>
+    <string name="notflix_searchcat_horror">رعب</string>
+    <string name="notflix_searchcat_documentary">وثائقيات</string>
+    <string name="notflix_searchcat_thrilling">أعمال إثارة</string>
+    <string name="notflix_searchcat_drama">أعمال درامية</string>
+    <string name="notflix_searchcat_arabic">أعمال عربية</string>
+    <string name="notflix_searchcat_reality">أعمال واقعية</string>
+    <string name="notflix_searchcat_books">الأعمال المقتبسة من الكتب</string>
+    <string name="notflix_searchcat_anime">أنيمي</string>
+    <string name="notflix_searchcat_sci_fi">خيال علمي</string>
+    <string name="notflix_searchcat_romance">رومانسية</string>
+    <string name="notflix_searchcat_sports">رياضة</string>
+    <string name="notflix_searchcat_astrology">علم الأبراج</string>
+    <!-- Restyle 3: My Space sections + detail additions. -->
+    <string name="notflix_myspace_trailers">المقدمات التي شاهدتها</string>
+    <string name="notflix_myspace_liked">المسلسلات والبرامج والأفلام التي أعجبتك</string>
+    <string name="notflix_episode_count">%1$d حلقة</string>
+    <string name="notflix_detail_more_like">المزيد مثل هذا</string>
+    <string name="notflix_rate_dislike">لم يعجبني</string>
+    <string name="notflix_rate_like">أعجبني</string>
+    <string name="notflix_rate_love">أحببته</string>
+    <string name="notflix_detail_cast">كادر الممثلين</string>
+    <string name="notflix_detail_creators">التأليف</string>
     <string name="notflix_age_empty">No titles are available for this profile.</string>
     <string name="notflix_age_empty_no_tmdb">Age filtering needs the TMDB key (Settings &gt; Integrations).</string>
     <string name="notflix_auth_qr_tagline">Sign in to sync your library and your progress across all your screens.</string>
-    <string name="notflix_airing_this_week">Airing this week</string>
+    <string name="notflix_airing_this_week">يُعرض قريبًا</string>
     <string name="notflix_hide_title">Hide this title</string>
     <string name="notflix_title_hidden">\"%1$s\" hidden</string>
     <string name="notflix_undo">Undo</string>
@@ -78,7 +148,7 @@
     <string name="notflix_still_watching_exit">Back to browse</string>
     <string name="notflix_my_list">My list</string>
     <string name="notflix_search_recent">Recent searches</string>
-    <string name="notflix_search_explore">Explore</string>
+    <string name="notflix_search_explore">توصيات بناء على عمليات بحثك</string>
     <string name="notflix_search_no_results">No results for “%1$s”</string>
     <string name="notflix_search_space">Space</string>
     <string name="notflix_search_backspace">Delete</string>

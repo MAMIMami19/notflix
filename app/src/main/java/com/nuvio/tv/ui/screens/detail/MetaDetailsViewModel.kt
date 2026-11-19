@@ -14,6 +14,9 @@ import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.core.tmdb.withLocalizedTmdbText
 import com.nuvio.tv.data.local.LayoutPreferenceDataStore
 import com.nuvio.tv.data.local.MDBListSettingsDataStore
+import com.nuvio.tv.data.local.NotflixTasteDataStore
+import com.nuvio.tv.data.local.NotflixTasteEntry
+import com.nuvio.tv.data.local.NotflixUserRating
 import com.nuvio.tv.data.local.PlayerSettingsDataStore
 import com.nuvio.tv.data.local.TraktAuthDataStore
 import com.nuvio.tv.data.local.TraktSettingsDataStore
@@ -107,6 +110,7 @@ class MetaDetailsViewModel @Inject constructor(
     private val profileManager: ProfileManager,
     private val metaDetailsSessionState: MetaDetailsSessionState,
     private val watchedSeriesStateHolder: com.nuvio.tv.data.local.WatchedSeriesStateHolder,
+    private val tasteStore: NotflixTasteDataStore,
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -185,7 +189,60 @@ class MetaDetailsViewModel @Inject constructor(
         }
         observeShowFullReleaseDate()
         observeHideUnreleasedContent()
+        observeUserRating()
         loadMeta()
+    }
+
+    // Restyle 3: the user's own rating of this title (👎 👍 ❤️), kept in
+    // the per-profile taste store and shown on the detail screen. The key
+    // follows the loaded meta (apiType:id), falling back to the route
+    // params until the meta arrives.
+    private fun observeUserRating() {
+        viewModelScope.launch {
+            combine(tasteStore.ratedTitles, _uiState) { rated, state ->
+                val meta = state.meta
+                val key = if (meta != null) "${meta.apiType}:${meta.id}" else "$itemType:$itemId"
+                rated.firstOrNull { it.key == key }?.rating
+                    ?.let { runCatching { NotflixUserRating.valueOf(it) }.getOrNull() }
+            }.distinctUntilChanged().collect { rating ->
+                _uiState.update { state ->
+                    if (state.userRating == rating) state else state.copy(userRating = rating)
+                }
+            }
+        }
+    }
+
+    private fun setUserRating(rating: NotflixUserRating) {
+        val meta = _uiState.value.meta ?: return
+        val key = "${meta.apiType}:${meta.id}"
+        viewModelScope.launch {
+            if (_uiState.value.userRating == rating) {
+                // Pressing the active rating clears it.
+                tasteStore.clearRating(key)
+            } else {
+                tasteStore.setRating(
+                    NotflixTasteEntry(
+                        key = key, type = meta.apiType, name = meta.name,
+                        poster = meta.poster, backdrop = meta.backdropUrl,
+                        rating = rating.name, at = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    /** Restyle 3: log a watched trailer for the My Space trailers row. */
+    private fun recordTrailerWatched() {
+        val meta = _uiState.value.meta ?: return
+        viewModelScope.launch {
+            tasteStore.recordTrailer(
+                NotflixTasteEntry(
+                    key = "${meta.apiType}:${meta.id}", type = meta.apiType, name = meta.name,
+                    poster = meta.poster, backdrop = meta.backdropUrl,
+                    rating = null, at = System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     private fun observeHideUnreleasedContent() {
@@ -363,6 +420,7 @@ class MetaDetailsViewModel @Inject constructor(
             MetaDetailsEvent.OnUserInteraction -> handleUserInteraction()
             MetaDetailsEvent.OnPlayButtonFocused -> handlePlayButtonFocused()
             MetaDetailsEvent.OnTrailerButtonClick -> handleTrailerButtonClick()
+            is MetaDetailsEvent.OnUserRating -> setUserRating(event.rating)
             MetaDetailsEvent.OnTrailerEnded -> handleTrailerEnded()
             is MetaDetailsEvent.OnSharedTrailerSelected -> handleSharedTrailerSelected(event.trailer)
             MetaDetailsEvent.OnDismissSharedTrailer -> dismissSharedTrailerOverlay()
@@ -2972,6 +3030,8 @@ class MetaDetailsViewModel @Inject constructor(
     private fun handleTrailerButtonClick() {
         val state = _uiState.value
         if (state.trailerUrl.isNullOrBlank()) return
+        // Restyle 3: the trailer counts as watched from here on.
+        recordTrailerWatched()
         if (!AppFeaturePolicy.inAppTrailerPlaybackEnabled) {
             openExternalTrailer(state.trailerUrl)
             return

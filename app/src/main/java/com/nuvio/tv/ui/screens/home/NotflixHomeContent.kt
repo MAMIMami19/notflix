@@ -70,6 +70,7 @@ import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.format.TextStyle
@@ -133,14 +134,14 @@ internal fun notflixRows(state: HomeUiState, keepPendingCw: Boolean, cwTitle: St
     myListRow: NotflixCatalogRow? = null, becauseRow: NotflixCatalogRow? = null,
     airingTitle: String = "", airingCaption: (AiringEntry) -> String = { "" },
     airingNow: java.time.Instant = java.time.Instant.now(),
-    airingZone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<NotflixDisplayRow> = buildList {
+    airingZone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    genresTitle: String = "التصنيفات"): List<NotflixDisplayRow> = buildList {
     if (notflixKidsNeedsTmdbKey(state.ageLimit, state.ageTmdbKeyAvailable)) return@buildList
-    // Restyle: the genre strip sits first (row 0), above Continue watching —
-    // but only once there is content to filter, so an empty home still shows
-    // its loading/empty state instead of a strip that leads nowhere.
-    if (state.notflixCatalog.rows.isNotEmpty() || state.continueWatchingItems.isNotEmpty()) {
-        add(notflixGenreRow())
-    }
+    // Restyle 3: the genre strip sits BELOW Continue watching (Netflix puts
+    // its genre bar there, not under the hero) — but only once there is
+    // content to filter, so an empty home still shows its loading/empty
+    // state instead of a strip that leads nowhere.
+    val showGenres = state.notflixCatalog.rows.isNotEmpty() || state.continueWatchingItems.isNotEmpty()
     val hiddenKeys = state.hiddenTitleKeys
     val alertByContentId = state.continueWatchingItems.asSequence()
         .filterIsInstance<ContinueWatchingItem.NextUp>()
@@ -169,6 +170,9 @@ internal fun notflixRows(state: HomeUiState, keepPendingCw: Boolean, cwTitle: St
                 }
             }, wide = true))
     }
+    // Restyle 3: the genre strip goes right after Continue watching (or
+    // first when there is no CW row — e.g. CW disabled or empty).
+    if (showGenres) add(notflixGenreRow(genresTitle))
     if (airing.isNotEmpty() && NOTFLIX_AIRING_ROW_KEY !in state.disabledHomeCatalogKeys) {
         add(NotflixDisplayRow(
             key = NOTFLIX_AIRING_ROW_KEY,
@@ -277,6 +281,9 @@ fun NotflixHomeContent(
     cardActions: NotflixCardActionsHost? = null,
     myListRow: NotflixCatalogRow? = null,
     becauseRow: NotflixCatalogRow? = null,
+    /** Restyle 3: a trailer that starts playing logs for the My Space
+     *  trailers row (one log per preview lease). */
+    onTrailerWatched: (MetaPreview) -> Unit = {},
     /** M66: settings shortcut from the KIDS notice; the host decides the destination. */
     onOpenIntegrations: () -> Unit = {},
     onRetry: () -> Unit
@@ -286,7 +293,20 @@ fun NotflixHomeContent(
         memory.retainedCatalog = presentation.notflixCatalog
         memory.retainedCw = presentation.continueWatchingItems
     }
+    // Restyle 3: log each trailer that starts playing (one log per lease).
+    val previewCoordinator = previewSession?.coordinator
+    LaunchedEffect(previewCoordinator) {
+        var lastSerial = -1L
+        previewCoordinator?.state?.collect { phase ->
+            val playing = phase as? PreviewPhase.Playing ?: return@collect
+            if (playing.lease.serial != lastSerial) {
+                lastSerial = playing.lease.serial
+                onTrailerWatched(playing.lease.item)
+            }
+        }
+    }
     val cwTitle = stringResource(R.string.notflix_continue_watching)
+    val genresTitle = stringResource(R.string.notflix_genres_title)
     val episodePattern = stringResource(R.string.notflix_episode)
     val seeAll = stringResource(R.string.notflix_collection_see_all)
     val airingTitle = stringResource(R.string.notflix_airing_this_week)
@@ -298,7 +318,10 @@ fun NotflixHomeContent(
             val day = when (entry.dayLabel) {
                 AiringDayLabel.TODAY -> todayLabel
                 AiringDayLabel.TOMORROW -> tomorrowLabel
-                AiringDayLabel.WEEKDAY -> entry.localDate.dayOfWeek.getDisplayName(TextStyle.FULL, locale)
+                // Restyle 3: the «يُعرض قريبًا» row shows the release date
+                // (weekday + day/month), Netflix-style.
+                AiringDayLabel.WEEKDAY -> "${entry.localDate.dayOfWeek.getDisplayName(TextStyle.FULL, locale)}، " +
+                    entry.localDate.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM", locale))
             }
             "$day · ${episodePattern.format(entry.info.season, entry.info.episode)}"
         }
@@ -308,16 +331,17 @@ fun NotflixHomeContent(
     // focused row rebuilt every tile on each Up/Down; this derived flag changes only at that row.
     val keepPendingCw by remember { derivedStateOf { focused?.rowKey == "cw" } }
     val rows = remember(presentation.notflixCatalog, presentation.continueWatchingItems, state.continueWatchingEnabled,
-        state.notflixCwPhase, keepPendingCw, cwTitle, episodePattern, seeAll, myListRow, becauseRow,
+        state.notflixCwPhase, keepPendingCw, cwTitle, genresTitle, episodePattern, seeAll, myListRow, becauseRow,
         state.ageLimit, state.ageTmdbKeyAvailable, state.ageRatings, state.watchedMovieIds, state.fullyWatchedSeriesIds,
         state.hiddenTitleKeys, state.disabledHomeCatalogKeys, airingTitle, airingCaption) {
         notflixRows(presentation, keepPendingCw, cwTitle, episodePattern, seeAll, myListRow, becauseRow,
-            airingTitle, airingCaption)
+            airingTitle, airingCaption, genresTitle = genresTitle)
     }
     // Restyle 2: the active genre filter (null = unfiltered). Focus on a
-    // pill sets it — the rows below re-filter live, Netflix-style; OK on a
-    // pill opens the genre's own browse screen instead. The strip row stays
-    // first while filtered; displayRows is what the home renders and navigates.
+    // tile sets it — the rows below re-filter live, Netflix-style; OK on a
+    // tile opens the genre's own browse screen instead. The strip row stays
+    // (below Continue watching) while filtered; displayRows is what the
+    // home renders and navigates.
     var selectedGenre by remember { mutableStateOf<NotflixGenre?>(null) }
     val displayRows = remember(rows, selectedGenre) {
         val genre = selectedGenre
@@ -920,7 +944,8 @@ fun NotflixHomeContent(
             }
             if (selectedGenre != null && displayRows.size <= 1) {
                 item("genre-empty") {
-                    Text(stringResource(R.string.notflix_genre_empty, selectedGenre?.titleAr.orEmpty()),
+                    Text(stringResource(R.string.notflix_genre_empty,
+                        selectedGenre?.let { stringResource(it.titleRes) }.orEmpty()),
                         color = Spec.Secondary, fontSize = 18.sp,
                         modifier = Modifier.padding(horizontal = Spec.GUTTER.dp, vertical = 36.dp))
                 }

@@ -139,7 +139,9 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     onNavigateToDetail: (String, String, String) -> Unit,
     onNavigateToSeeAll: (catalogId: String, addonId: String, type: String) -> Unit = { _, _, _ -> },
-    onOpenDiscover: () -> Unit = {}
+    onOpenDiscover: () -> Unit = {},
+    /** Restyle 3: a quick category opens that genre's browse screen. */
+    onNavigateToGenre: (String) -> Unit = {}
 ) {
     val rawUiState by viewModel.uiState.collectAsState()
     val ageGateState by viewModel.ageGateState.collectAsState()
@@ -341,7 +343,8 @@ fun SearchScreen(
             },
             onNavigateToDetail = onNavigateToDetail,
             localizedTitles = localizedTitles,
-            onRequestTitles = viewModel::requestLocalizedTitles
+            onRequestTitles = viewModel::requestLocalizedTitles,
+            onCategoryClick = onNavigateToGenre
         )
         return
     }

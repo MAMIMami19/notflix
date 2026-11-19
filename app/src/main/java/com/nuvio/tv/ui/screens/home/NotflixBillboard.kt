@@ -1,6 +1,5 @@
 package com.nuvio.tv.ui.screens.home
 
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.animation.Crossfade
 import com.nuvio.tv.ui.appearance.NotflixWordmark
@@ -114,7 +113,12 @@ internal fun NotflixBillboard(
         }
     }
     // Perf (TV GPU): no own background, the Notflix shell root already paints it; fewer full-width fills.
-    Box(Modifier.fillMaxWidth().height(Spec.HERO_HEIGHT.dp).clipToBounds().testTag("notflix-editorial")
+    // Restyle 3: Netflix-style INSET hero — a rounded-rectangle card with
+    // margins, not full-bleed. The top margin clears the nav bar; the card
+    // height keeps the total band at Spec.HERO_HEIGHT so the home's scroll
+    // math (which uses HERO_HEIGHT) stays exact.
+    Box(Modifier.fillMaxWidth().padding(horizontal = Spec.GUTTER.dp).padding(top = 56.dp)
+        .height((Spec.HERO_HEIGHT - 56).dp).clip(RoundedCornerShape(10.dp)).testTag("notflix-editorial")
         .onFocusChanged { interacting = it.hasFocus; onInteraction(it.hasFocus) }.focusGroup()) {
         key(binding) {
             Crossfade(identity, Modifier.matchParentSize(), animationSpec = if (reduced) snap() else tween(450), label = "notflix-billboard-art") { shownIdentity ->
@@ -138,7 +142,7 @@ internal fun NotflixBillboard(
         // The top darkening comes from the Notflix bar gradient that already sits over this band.
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().fillMaxHeight(.42f).background(Brush.verticalGradient(
             0f to Color.Transparent, (.86f - .58f) / .42f to Spec.Background.copy(.75f), 1f to Spec.Background)))
-        Column(Modifier.align(Alignment.BottomStart).width(420.dp).padding(start = Spec.GUTTER.dp, bottom = 32.dp)
+        Column(Modifier.align(Alignment.BottomStart).width(420.dp).padding(start = 24.dp, bottom = 28.dp)
             .testTag("notflix-editorial-copy"), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(Modifier.fillMaxWidth().graphicsLayer { alpha = if (reduced) 1f else copyAlpha.value }
                 .testTag("notflix-billboard-visible-copy")) {
@@ -153,7 +157,7 @@ internal fun NotflixBillboard(
                     symbol = "ⓘ", primary = onPlay == null, enabled = actionsReady, activationToken = binding to identity, onFocus = { onFocus(BillboardAction.INFO) }, onKey = { onKey(BillboardAction.INFO, it) }, onClick = onInfo)
             }
         }
-        if (count > 1) Row(Modifier.align(Alignment.BottomEnd).padding(end = Spec.GUTTER.dp, bottom = 36.dp),
+        if (count > 1) Row(Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 28.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             val confirmSound = rememberNotflixConfirmSound()
             repeat(count) { position ->

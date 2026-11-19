@@ -1217,7 +1217,11 @@ private fun PlaybackNavHost(
                         Screen.CatalogSeeAll.createRoute(catalogId, addonId, type, fromSearch = true)
                     )
                 },
-                onOpenDiscover = { navController.navigate(Screen.Discover.route) }
+                onOpenDiscover = { navController.navigate(Screen.Discover.route) },
+                // Restyle 3: a quick category opens that genre's browse screen.
+                onNavigateToGenre = { tag ->
+                    navController.navigate(Screen.GenreBrowse.createRoute(tag))
+                }
             )
         }
 
@@ -1255,6 +1259,17 @@ private fun PlaybackNavHost(
                             heroBackdropUrl = heroBackdrop
                         )
                     )
+                },
+                // Restyle 3: the tab hero's Play button plays on load.
+                onPlayItem = { item ->
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = item.id,
+                            itemType = item.apiType,
+                            addonBaseUrl = item.sourceAddonBaseUrl,
+                            playOnLoad = true
+                        )
+                    )
                 }
             )
         }
@@ -1273,13 +1288,37 @@ private fun PlaybackNavHost(
                             heroBackdropUrl = heroBackdrop
                         )
                     )
+                },
+                // Restyle 3: the tab hero's Play button plays on load.
+                onPlayItem = { item ->
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = item.id,
+                            itemType = item.apiType,
+                            addonBaseUrl = item.sourceAddonBaseUrl,
+                            playOnLoad = true
+                        )
+                    )
                 }
             )
         }
 
         composable(Screen.Library.route) {
+            // Restyle 3: My Space shows Continue Watching — the same items
+            // the home row uses, from the shared HomeViewModel (the same
+            // pattern as the Calendar screen).
+            val homeEntry = androidx.compose.runtime.remember {
+                runCatching { navController.getBackStackEntry(Screen.Home.route) }.getOrNull()
+            }
+            val homeViewModel: com.nuvio.tv.ui.screens.home.HomeViewModel? = homeEntry?.let {
+                androidx.hilt.navigation.compose.hiltViewModel(it)
+            }
+            val homeState by (homeViewModel?.uiState ?: kotlinx.coroutines.flow.flowOf(
+                com.nuvio.tv.ui.screens.home.HomeUiState()
+            )).collectAsStateWithLifecycle(com.nuvio.tv.ui.screens.home.HomeUiState())
             LibraryScreen(
                 showBuiltInHeader = !hideBuiltInHeaders,
+                continueWatchingItems = homeState.continueWatchingItems,
                 onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
                     navController.navigate(Screen.Detail.createRoute(itemId, itemType, addonBaseUrl))
                 },

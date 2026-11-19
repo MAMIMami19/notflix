@@ -332,6 +332,7 @@ fun HomeScreen(
                 onLoadMore = { catalog, addon, type -> viewModel.onEvent(HomeEvent.OnLoadMoreCatalog(catalog, addon, type)) },
                 onFocusedMeta = viewModel::onItemFocus,
                 previewSession = cardPreview,
+                onTrailerWatched = viewModel::recordTrailerWatched,
                 cardActions = notflixCardActions,
                 myListRow = myListRow,
                 becauseRow = becauseRow,

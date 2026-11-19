@@ -49,7 +49,7 @@ import com.nuvio.tv.ui.components.posteroptions.PosterOptionsViewModel
 import com.nuvio.tv.domain.model.LibrarySourceMode
 import com.nuvio.tv.ui.components.posteroptions.posterCardStatusKey
 import com.nuvio.tv.ui.screens.home.HomeViewModel
-import com.nuvio.tv.ui.screens.home.NOTFLIX_GENRES
+import com.nuvio.tv.ui.screens.home.notflixGenreByTag
 import com.nuvio.tv.ui.screens.home.NotflixCardStatus
 import com.nuvio.tv.ui.screens.home.allowsForAge
 import com.nuvio.tv.ui.screens.home.homeItemStatusKey
@@ -105,7 +105,7 @@ fun NotflixGenreBrowseScreen(
     onNavigateToPlay: ((String, String, String, Boolean) -> Unit)? = null,
     onBackPress: () -> Unit
 ) {
-    val genre = remember(genreTag) { NOTFLIX_GENRES.find { it.tag == genreTag } }
+    val genre = remember(genreTag) { notflixGenreByTag(genreTag) }
     val posterOptionsController = posterOptionsViewModel.controller
     val uiState by viewModel.uiState.collectAsState()
     val fullCatalogRows by viewModel.fullCatalogRows.collectAsState()
@@ -221,7 +221,7 @@ fun NotflixGenreBrowseScreen(
         Box(Modifier.fillMaxSize()) {
             NotflixCatalogSeeAllScreen(
                 catalogKey = "genre-$genreTag",
-                title = genre.titleAr,
+                title = stringResource(genre.titleRes),
                 collectionLabel = null,
                 items = genreItems,
                 isLoading = false,
@@ -281,7 +281,7 @@ fun NotflixGenreBrowseScreen(
             .padding(vertical = NuvioTheme.spacing.xl)
     ) {
         Text(
-            text = genre.titleAr,
+            text = stringResource(genre.titleRes),
             style = MaterialTheme.typography.headlineLarge,
             color = NuvioTheme.colors.TextPrimary,
             modifier = Modifier.padding(horizontal = NuvioTheme.spacing.xxxl)

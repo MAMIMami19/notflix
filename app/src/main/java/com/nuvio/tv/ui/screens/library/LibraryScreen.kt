@@ -134,7 +134,9 @@ fun LibraryScreen(
     onNavigateToDetail: (String, String, String?) -> Unit,
     onNavigateToCatalogSeeAll: (String, String, String) -> Unit = { _, _, _ -> },
     onCloudPlaybackResolved: (CloudLibraryPlaybackInfo) -> Unit = {},
-    onNavigateToHome: () -> Unit = {}
+    onNavigateToHome: () -> Unit = {},
+    /** Restyle 3: My Space shows Continue Watching (shared HomeViewModel). */
+    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()
@@ -226,7 +228,8 @@ fun LibraryScreen(
                 scope.launch { viewModel.launchCloudPlaybackExternally(info, activityContext) }
             },
             onNavigateToDetail = onNavigateToDetail,
-            onNavigateToHome = onNavigateToHome
+            onNavigateToHome = onNavigateToHome,
+            continueWatchingItems = continueWatchingItems
         )
         return
     }

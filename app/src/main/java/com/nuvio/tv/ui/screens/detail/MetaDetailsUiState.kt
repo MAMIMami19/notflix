@@ -58,6 +58,8 @@ data class MetaDetailsUiState(
     val pickerMembership: Map<String, Boolean> = emptyMap(),
     val pickerPending: Boolean = false,
     val pickerError: String? = null,
+    /** Restyle 3: the user's own rating of this title (👎 👍 ❤️), local only. */
+    val userRating: com.nuvio.tv.data.local.NotflixUserRating? = null,
     val defaultLibraryTogglePending: Boolean = false,
     val removalConfirmations: List<TrackingMembershipRemovalConfirmation> = emptyList(),
     val isMovieWatched: Boolean = false,
@@ -133,4 +135,6 @@ sealed class MetaDetailsEvent {
     data object OnRemovalCancelled : MetaDetailsEvent()
     data object OnClearMessage : MetaDetailsEvent()
     data object OnLifecyclePause : MetaDetailsEvent()
+    /** Restyle 3: rate this title (👎 👍 ❤️); pressing the active rating clears it. */
+    data class OnUserRating(val rating: com.nuvio.tv.data.local.NotflixUserRating) : MetaDetailsEvent()
 }

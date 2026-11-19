@@ -856,6 +856,9 @@ fun MetaDetailsScreen(
                     onDetailReturnEpisodeFocusConsumed = onReturnFocusConsumed,
                     lastFocusedEpisodeIdBySeason = viewModel.lastFocusedEpisodeIdBySeason,
                     wikipediaExtract = wikipediaExtract,
+                    // Restyle 3: the user's own rating (👎 👍 ❤️).
+                    userRating = uiState.userRating,
+                    onUserRating = { viewModel.onEvent(MetaDetailsEvent.OnUserRating(it)) },
                     heroRestoreToken = heroRestoreToken,
                     seasons = uiState.seasons,
                     selectedSeason = uiState.selectedSeason,
@@ -1297,7 +1300,10 @@ internal fun MetaDetailsContent(
     onNavigateToTmdbEntityBrowse: (entityKind: String, entityId: Int, entityName: String, sourceType: String) -> Unit = { _, _, _, _ -> },
     onNavigateToDetail: (itemId: String, itemType: String, addonBaseUrl: String?) -> Unit = { _, _, _ -> },
     onPosterLongPress: (MetaPreview) -> Unit = {},
-    wikipediaExtract: com.nuvio.tv.data.wikipedia.WikipediaExtract? = null
+    wikipediaExtract: com.nuvio.tv.data.wikipedia.WikipediaExtract? = null,
+    /** Restyle 3: the user's own rating of this title (👎 👍 ❤️). */
+    userRating: com.nuvio.tv.data.local.NotflixUserRating? = null,
+    onUserRating: (com.nuvio.tv.data.local.NotflixUserRating) -> Unit = {}
 ) {
     val notflix = com.nuvio.tv.ui.appearance.LocalNotflixPresentation.current.active
     var notflixPanelHasFocus by remember { mutableStateOf(false) }
@@ -2359,7 +2365,10 @@ internal fun MetaDetailsContent(
                 clearPendingRestore()
             },
             onShowFullDescription = { showSynopsisOverlay = true },
-            onTruncationChanged = { synopsisTruncated = it }
+            onTruncationChanged = { synopsisTruncated = it },
+            // Restyle 3: the user's own rating (👎 👍 ❤️).
+            userRating = userRating,
+            onUserRating = onUserRating
         )
     }
     val seasonContent: @Composable () -> Unit = {
@@ -2696,7 +2705,10 @@ internal fun MetaDetailsContent(
                             panelEntryFocusRequester = if (showSeasonTabs) selectedSeasonFocusRequester else seasonDownFocusRequester,
                             onPanelFocusChanged = { notflixPanelHasFocus = it },
                             hero = heroContent, seasons = seasonContent,
-                            episodes = { androidx.compose.runtime.key(selectedSeason) { episodeContent() } })
+                            episodes = { androidx.compose.runtime.key(selectedSeason) { episodeContent() } },
+                            // Restyle 3: movies get the info column
+                            // (cast + creators) on the right.
+                            info = if (!isSeries) ({ NotflixDetailInfoColumn(meta) }) else null)
                     } else {
                         heroContent()
                     }
@@ -2907,6 +2919,19 @@ internal fun MetaDetailsContent(
                 }
             }
             
+            // Restyle 3 (Notflix only): the Netflix-style vertical
+            // «المزيد مثل هذا» list below the tabbed section.
+            if (notflix && moreLikeThis.isNotEmpty()) {
+                item(key = "notflix_more_like_list", contentType = "vertical_list") {
+                    NotflixMoreLikeThisList(
+                        items = moreLikeThis,
+                        onItemClick = { item ->
+                            onNavigateToDetail(item.id, item.apiType, null)
+                        }
+                    )
+                }
+            }
+
             // Collection as separate section when there are too many tabs
             if (shouldSplitCollection && collection.isNotEmpty()) {
                 item(key = "collection_section", contentType = "horizontal_row") {

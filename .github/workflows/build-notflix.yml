@@ -1,14 +1,19 @@
-name: Build Notflix Restyle 2
+name: Build Notflix Restyle 3
 
-# Notflix restyle 2 (1.0.0-beta.4.1-restyle2, vc 1078, com.notflix.tv.custom):
+# Notflix restyle 3 (1.0.0-beta.4.1-restyle3, vc 1079, com.notflix.tv.custom):
 # a side-by-side custom build that installs ALONGSIDE upstream Notflix.
-# - Genre strip on the home (row 0): 21 Matrix-Productions-style landscape
-#   tiles, Arabic name on a refined dark per-genre color (NO pictures on the
-#   tiles); OK on a tile opens that genre's dedicated browse screen, whose
-#   content is matched to the genre (TMDB genres, title/synopsis words,
-#   origin country for anime, recency + rating for new & worthy).
+# - Genre strip: 21 unified semi-transparent grey landscape tiles below
+#   Continue watching (Netflix placement); OK on a tile opens that genre's
+#   dedicated browse screen, whose content is matched to the genre (TMDB
+#   genres, title/synopsis words, origin country for anime, recency +
+#   rating for new & worthy). All restyle strings follow the app language
+#   (Arabic by default, French when French).
+# - Profile circle in the top bar (fixed: renders whenever an active
+#   profile exists); Netflix-style tab redesigns (home hero inset card,
+#   movies/series tabs with hero + rows, My Space sections, search with
+#   Arabic keyboard + quick categories, detail screen).
 # - Netflix-style home: same-theme catalog rows from different addons merge
-#   into one row, and stock theme rows get Netflix-style Arabic titles.
+#   into one row, and stock theme rows get Netflix-style localized titles.
 # - Hero scrim spans the full width (was a 75% band with a hard edge).
 # - New package (com.notflix.tv.custom) + new signing key + label
 #   "NotFlix Custom"; the appearance gate covers the new package id.
@@ -21,7 +26,7 @@ on:
 # Serialize runs: two concurrent full-release builds died together when the
 # runner pool cancelled them (Matrix runs 43618067580/43618374036); queue instead.
 concurrency:
-  group: notflix-restyle-2-build
+  group: notflix-restyle-3-build
   cancel-in-progress: false
 
 permissions:
@@ -77,9 +82,9 @@ jobs:
           # are invisible to the in-app updater (unauthenticated API calls
           # never see them, and the tag is not a valid version anyway).
           # Delete the draft after the APKs are verified/downloaded.
-          TAG="notflix-restyle2-draft-${{ github.run_number }}"
+          TAG="notflix-restyle3-draft-${{ github.run_number }}"
           gh release create "$TAG" \
             --draft \
-            --title "Notflix Restyle 2 draft (CI run ${{ github.run_number }})" \
-            --notes "CI-built Notflix Restyle 2 release APKs (1.0.0-beta.4.1-restyle2, vc 1078, com.notflix.tv.custom): 21 name-only genre tiles with refined per-genre colors, each opening its own dedicated browse screen with genre-matched content; merged rows + Netflix-style Arabic titles; full-width hero scrim. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            --title "Notflix Restyle 3 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 3 release APKs (1.0.0-beta.4.1-restyle3, vc 1079, com.notflix.tv.custom): unified grey genre tiles below Continue watching, localized restyle strings (AR/FR), profile-circle fix, Netflix-style tab redesigns. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk

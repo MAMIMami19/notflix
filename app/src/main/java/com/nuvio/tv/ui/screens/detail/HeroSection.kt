@@ -61,6 +61,7 @@ import coil3.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import android.util.Log
 import com.nuvio.tv.R
+import com.nuvio.tv.data.local.NotflixUserRating
 import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.Meta
 import com.nuvio.tv.domain.model.MDBListRatings
@@ -73,6 +74,9 @@ import com.nuvio.tv.ui.components.SynopsisDescription
 import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.platform.LocalConfiguration
@@ -122,7 +126,10 @@ fun HeroContentSection(
     onHeroActionFocused: () -> Unit = {},
     onPlayFocusRestored: () -> Unit = {},
     onShowFullDescription: () -> Unit = {},
-    onTruncationChanged: (Boolean) -> Unit = {}
+    onTruncationChanged: (Boolean) -> Unit = {},
+    /** Restyle 3: the user's own rating (👎 👍 ❤️), Notflix only. */
+    userRating: NotflixUserRating? = null,
+    onUserRating: (NotflixUserRating) -> Unit = {}
 ) {
     val context = LocalContext.current
     val isSeriesApi = remember(meta.apiType) {
@@ -216,6 +223,39 @@ fun HeroContentSection(
                     painter = trailerPainter,
                     contentDescription = stringResource(R.string.hero_play_trailer),
                     onClick = onTrailerClick,
+                    onFocused = onHeroActionFocused
+                )
+            }
+
+            // Restyle 3 (Notflix only): the user's own rating — 👎 👍 ❤️.
+            // Local only; pressing the active rating clears it. The liked
+            // titles feed the «أعجبتك» section of My Space.
+            if (notflix) {
+                ActionIconButton(
+                    icon = Icons.Default.ThumbDown,
+                    contentDescription = stringResource(R.string.notflix_rate_dislike),
+                    onClick = { onUserRating(NotflixUserRating.DISLIKE) },
+                    selected = userRating == NotflixUserRating.DISLIKE,
+                    selectedContainerColor = Color.White,
+                    selectedContentColor = Color.Black,
+                    onFocused = onHeroActionFocused
+                )
+                ActionIconButton(
+                    icon = Icons.Default.ThumbUp,
+                    contentDescription = stringResource(R.string.notflix_rate_like),
+                    onClick = { onUserRating(NotflixUserRating.LIKE) },
+                    selected = userRating == NotflixUserRating.LIKE,
+                    selectedContainerColor = Color.White,
+                    selectedContentColor = Color.Black,
+                    onFocused = onHeroActionFocused
+                )
+                ActionIconButton(
+                    icon = Icons.Default.Favorite,
+                    contentDescription = stringResource(R.string.notflix_rate_love),
+                    onClick = { onUserRating(NotflixUserRating.LOVE) },
+                    selected = userRating == NotflixUserRating.LOVE,
+                    selectedContainerColor = Color.White,
+                    selectedContentColor = Color.Black,
                     onFocused = onHeroActionFocused
                 )
             }
@@ -728,8 +768,13 @@ private fun MetaInfoRow(
     }
 
     if (com.nuvio.tv.ui.appearance.LocalNotflixPresentation.current.active) {
+        // Restyle 3: series show their episode count in the meta line.
+        val episodeCountText = if (isSeries) {
+            meta.watchableEpisodes().size.takeIf { it > 0 }
+                ?.let { stringResource(R.string.notflix_episode_count, it) }
+        } else null
         NotflixDetailMetadata(
-            primary = listOfNotNull(runtimeText, yearText,
+            primary = listOfNotNull(runtimeText, yearText, episodeCountText,
                 imdbRating?.takeIf { it.isFinite() && it in 0f..10f }?.let { String.format(Locale.US, "%.1f IMDb", it) },
                 tmdbRating?.takeIf { it.isFinite() && it in 0f..10f }?.let { "TMDB ${(it * 10).toInt()}%" }),
             genres = genresText,
