@@ -50,6 +50,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -191,7 +192,11 @@ internal fun NotflixLibraryPage(
         val parts = tile.canonical.split(":", limit = 2)
         if (parts.size == 2) onOpenTitle(parts[1], parts[0])
     }
-    val specs = remember(state.visibleItems, watchedMovieIds, watchedSeriesIds, saved) {
+    // The genre labels need a Context; the @Composable overload cannot be
+    // called inside remember, so the context is captured here and the
+    // two-arg overload (identical result) is used below.
+    val labelContext = LocalContext.current
+    val specs = remember(state.visibleItems, watchedMovieIds, watchedSeriesIds, saved, labelContext) {
         if (!saved) {
             emptyList()
         } else {
@@ -206,7 +211,7 @@ internal fun NotflixLibraryPage(
                     overview = entry.description,
                     metadata = buildList {
                         entry.releaseInfo?.takeIf { it.isNotBlank() }?.let { add(it) }
-                        entry.genres.take(2).forEach { add(localizedGenreLabel(it)) }
+                        entry.genres.take(2).forEach { add(localizedGenreLabel(labelContext, it)) }
                     }
                 )
             }

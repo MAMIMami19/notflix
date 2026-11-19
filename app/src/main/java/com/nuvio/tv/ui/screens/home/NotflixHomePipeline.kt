@@ -6,6 +6,7 @@ import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.legacyKey
 import com.nuvio.tv.core.profile.isKidsAgeLimit
+import com.nuvio.tv.core.util.withAppLocale
 import com.nuvio.tv.R
 
 /** Captured beside the official rows; stale generation results never publish removals. */
