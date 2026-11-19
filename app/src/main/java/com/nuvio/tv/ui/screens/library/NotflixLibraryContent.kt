@@ -200,6 +200,14 @@ internal fun NotflixLibraryPage(
                     entry.type.equals("tv", ignoreCase = true)
                 entry.toNotflixPosterSpec(
                     watched = if (isSeries) entry.id in watchedSeriesIds else entry.id in watchedMovieIds
+                ).copy(
+                    // Restyle 3.2: the focused card expands with data +
+                    // summary — same facts the (unused) focus header shows.
+                    overview = entry.description,
+                    metadata = buildList {
+                        entry.releaseInfo?.takeIf { it.isNotBlank() }?.let { add(it) }
+                        entry.genres.take(2).forEach { add(localizedGenreLabel(it)) }
+                    }
                 )
             }
         }
@@ -370,6 +378,9 @@ internal fun NotflixLibraryPage(
 
             else -> NotflixPosterGrid(
                 items = gridSpecs,
+                // Restyle 3.2: the focused card expands with data + summary
+                // (saved items only — cloud items carry no synopsis).
+                expandFocusedCard = saved,
                 // Restyle 3.1: the grid starts under the top bar, so the first
                 // header item (the Continue-watching title) sat behind it —
                 // clear the nav bar like the home hero does (56.dp + room).

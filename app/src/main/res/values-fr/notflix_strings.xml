@@ -25,6 +25,8 @@
     <string name="notflix_genre_empty">Aucun résultat pour « %1$s » — essayez un autre genre</string>
     <!-- Restyle 2: Netflix-style top bar + genre-section tabs. -->
     <string name="notflix_tab_series_programs">Séries et émissions</string>
+    <!-- Restyle 3.2: the «الجديد» top-bar tab. -->
+    <string name="notflix_tab_new">Nouveautés</string>
     <string name="notflix_my_space">Mon espace</string>
     <string name="notflix_genre_section_all">Tout</string>
     <string name="notflix_genre_section_new_movies">Nouveaux films</string>

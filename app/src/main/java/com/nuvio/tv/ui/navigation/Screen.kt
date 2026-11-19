@@ -143,6 +143,9 @@ sealed class Screen(val route: String) {
     // each renders DiscoverScreen with its type pre-selected.
     data object SeriesBrowse : Screen("series")
     data object MoviesBrowse : Screen("movies")
+    // Restyle 3.2: the «الجديد» tab — hero + new-release rows from the home
+    // catalogs (not a Discover screen, so no Discover-OFF bounce either).
+    data object NewBrowse : Screen("new")
     data object Library : Screen("library")
     data object Calendar : Screen("calendar")
     data object Settings : Screen("settings")

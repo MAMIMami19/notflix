@@ -1,5 +1,12 @@
-name: Build Notflix Restyle 3.1
+name: Build Notflix Restyle 3.2
 
+# Notflix restyle 3.2 (1.0.0-beta.4.1-restyle3.2, vc 1081, com.notflix.tv.custom):
+# Live TV row removed from home; row type labels in app locale (retry of the
+# 3.1 fix — the 3.1 fix was in the wrong place); catalog names in app locale
+# (local mapping for the 5 known names); tab hero backdrops; synthetic rows
+# for the 7 genres with no home row; fuller Movies/Series tabs; expanded
+# cards in My Space; vertical search categories; no black flash on the
+# expanded card; the simplified «الجديد» tab.
 # Notflix restyle 3.1 (1.0.0-beta.4.1-restyle3.1, vc 1080, com.notflix.tv.custom):
 # fix build for the restyle-3 on-device deficiencies — Discover fallback off
 # the empty PikPak watchlist, strict genre filter, CW/My-list kept while
@@ -87,9 +94,9 @@ jobs:
           # are invisible to the in-app updater (unauthenticated API calls
           # never see them, and the tag is not a valid version anyway).
           # Delete the draft after the APKs are verified/downloaded.
-          TAG="notflix-restyle3.1-draft-${{ github.run_number }}"
+          TAG="notflix-restyle3.2-draft-${{ github.run_number }}"
           gh release create "$TAG" \
             --draft \
-            --title "Notflix Restyle 3.1 draft (CI run ${{ github.run_number }})" \
-            --notes "CI-built Notflix Restyle 3.1 release APKs (1.0.0-beta.4.1-restyle3.1, vc 1080, com.notflix.tv.custom): Discover fallback off the empty PikPak watchlist, strict genre filter, CW/My-list kept while filtered, UP-to-tiles focus fix, My Space CW title, app-locale row type labels, wider top-bar tabs. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
+            --title "Notflix Restyle 3.2 draft (CI run ${{ github.run_number }})" \
+            --notes "CI-built Notflix Restyle 3.2 release APKs (1.0.0-beta.4.1-restyle3.2, vc 1081, com.notflix.tv.custom): Live TV row removed, app-locale row labels, app-locale catalog names, tab hero backdrops, rows for the 7 missing genres, fuller Movies/Series tabs, expanded My Space cards, vertical search categories, no black flash, simplified «الجديد» tab. Side-by-side with upstream Notflix. Draft only — do not publish without review." \
             app/build/outputs/apk/full/release/*.apk

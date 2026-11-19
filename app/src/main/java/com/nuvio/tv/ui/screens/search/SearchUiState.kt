@@ -43,6 +43,11 @@ data class SearchUiState(
     val pendingDiscoverResults: List<MetaPreview> = emptyList(),
     val discoverHasMore: Boolean = true,
     val discoverPage: Int = 1,
+    /** Restyle 3.2: one row per Discover catalog of the selected type, for
+     *  the Movies/Series tabs (Netflix-style: Trending, Popular, Top Rated,
+     *  New, genre rows — not just the single selected catalog re-sliced). */
+    val discoverTabRows: List<DiscoverTabRow> = emptyList(),
+    val discoverTabRowsLoading: Boolean = false,
     val posterLabelsEnabled: Boolean = true,
     val catalogAddonNameEnabled: Boolean = true,
     val catalogTypeSuffixEnabled: Boolean = true,
@@ -67,7 +72,11 @@ internal fun SearchUiState.filteredForAge(
             if (filtered.size == row.items.size) row else row.copy(items = filtered)
         },
         discoverResults = discoverResults.filter(::keep),
-        pendingDiscoverResults = pendingDiscoverResults.filter(::keep)
+        pendingDiscoverResults = pendingDiscoverResults.filter(::keep),
+        discoverTabRows = discoverTabRows.map { row ->
+            val filtered = row.items.filter(::keep)
+            if (filtered.size == row.items.size) row else row.copy(items = filtered)
+        }
     )
 }
 
@@ -83,4 +92,13 @@ data class DiscoverCatalog(
     val genres: List<String>,
     val supportsSkip: Boolean,
     val skipStep: Int
+)
+
+/** Restyle 3.2: one Movies/Series tab row — a Discover catalog's first page. */
+@Immutable
+data class DiscoverTabRow(
+    val key: String,
+    /** Localized catalog name, no type suffix (the tab fixes the type). */
+    val title: String,
+    val items: List<MetaPreview>
 )

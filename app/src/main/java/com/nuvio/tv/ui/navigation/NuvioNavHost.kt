@@ -1303,6 +1303,50 @@ private fun PlaybackNavHost(
             )
         }
 
+        composable(Screen.NewBrowse.route) {
+            // Restyle 3.2: the «الجديد» tab — hero + new-release rows from
+            // the shared HomeViewModel (same back-stack-entry pattern as
+            // the Library screen; Home stays in the back stack because the
+            // drawer navigation pops to the start destination).
+            val homeEntry = androidx.compose.runtime.remember {
+                runCatching { navController.getBackStackEntry(Screen.Home.route) }.getOrNull()
+            }
+            val homeViewModel: com.nuvio.tv.ui.screens.home.HomeViewModel? = homeEntry?.let {
+                androidx.hilt.navigation.compose.hiltViewModel(it)
+            }
+            val fullRows by (homeViewModel?.fullCatalogRows ?: kotlinx.coroutines.flow.flowOf(
+                emptyList<com.nuvio.tv.domain.model.CatalogRow>()
+            )).collectAsStateWithLifecycle(emptyList())
+            val homeState by (homeViewModel?.uiState ?: kotlinx.coroutines.flow.flowOf(
+                com.nuvio.tv.ui.screens.home.HomeUiState()
+            )).collectAsStateWithLifecycle(com.nuvio.tv.ui.screens.home.HomeUiState())
+            com.nuvio.tv.ui.screens.home.NotflixNewContent(
+                fullRows = fullRows,
+                loading = homeViewModel == null || homeState.isLoading,
+                onNavigateToDetail = { itemId, itemType, addonBaseUrl ->
+                    val heroBackdrop = HeroBackdropState.consumeAndClear()
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = itemId,
+                            itemType = itemType,
+                            addonBaseUrl = addonBaseUrl,
+                            heroBackdropUrl = heroBackdrop
+                        )
+                    )
+                },
+                onPlayItem = { item ->
+                    navController.navigate(
+                        Screen.Detail.createRoute(
+                            itemId = item.id,
+                            itemType = item.apiType,
+                            addonBaseUrl = item.sourceAddonBaseUrl,
+                            playOnLoad = true
+                        )
+                    )
+                }
+            )
+        }
+
         composable(Screen.Library.route) {
             // Restyle 3: My Space shows Continue Watching — the same items
             // the home row uses, from the shared HomeViewModel (the same

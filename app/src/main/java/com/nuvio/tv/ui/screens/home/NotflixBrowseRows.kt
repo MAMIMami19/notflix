@@ -92,11 +92,30 @@ internal fun notflixBrowseRows(
         add(NotflixDisplayRow("browse-new", "browse-new", newTitle, NotflixRowPhase.READY,
             fresh.map { notflixTileFromMeta(it, "browse-new") }))
     }
+    addAll(notflixBrowseGenreRows(deduped, genreTitle))
+}
+
+/**
+ * Restyle 3.2: the genre rows of [notflixBrowseRows] on their own, so the
+ * Movies/Series tabs can add them for the genres that have no catalog row
+ * of their own ([excludeTags]) on top of the catalog rows. Same rule: in
+ * strip order, at most 4 rows, each with at least 4 titles.
+ */
+internal fun notflixBrowseGenreRows(
+    items: List<MetaPreview>,
+    genreTitle: (NotflixGenre) -> String,
+    excludeTags: Set<String> = emptySet(),
+    maxRows: Int = 4,
+    minItems: Int = 4
+): List<NotflixDisplayRow> = buildList {
+    val deduped = items.distinctBy { "${it.apiType}:${it.id}" }
+    if (deduped.isEmpty()) return@buildList
     var genreRows = 0
     for (genre in NOTFLIX_GENRES) {
-        if (genreRows >= 4) break
+        if (genreRows >= maxRows) break
+        if (genre.tag in excludeTags) continue
         val matched = deduped.filter { genre.matchesItem(it) }.take(20)
-        if (matched.size >= 4) {
+        if (matched.size >= minItems) {
             genreRows++
             add(NotflixDisplayRow("browse-genre-${genre.tag}", "browse-genre-${genre.tag}",
                 genreTitle(genre), NotflixRowPhase.READY,
@@ -108,7 +127,13 @@ internal fun notflixBrowseRows(
 /** The tab hero pick: the best-rated title with a backdrop, else the first with one. */
 internal fun notflixBrowseHero(items: List<MetaPreview>): MetaPreview? {
     val withArt = items.filter { !(it.background ?: it.landscapePoster).isNullOrBlank() }
-    if (withArt.isEmpty()) return items.firstOrNull()
+    if (withArt.isEmpty()) {
+        // Restyle 3.2: the Discover catalogs' items often carry no backdrop
+        // at all (the tab heroes were black) — the hero falls back to the
+        // poster, so still pick the best-rated title, not just the first.
+        return items.filter { it.imdbRating != null }.maxByOrNull { it.imdbRating ?: 0f }
+            ?: items.firstOrNull()
+    }
     return withArt.filter { it.imdbRating != null }.maxByOrNull { it.imdbRating ?: 0f } ?: withArt.first()
 }
 
@@ -212,10 +237,15 @@ internal fun NotflixTabHero(
     Box(modifier.fillMaxWidth().padding(horizontal = Spec.GUTTER.dp).padding(top = 56.dp)
         .height((Spec.HERO_HEIGHT - 56).dp).clip(RoundedCornerShape(10.dp))
         .testTag("notflix-tab-hero")) {
-        val art = item.background ?: item.landscapePoster
+        // Restyle 3.2: the Discover items often have no backdrop at all, and
+        // the tab heroes sat black for minutes. Fall back to the poster
+        // (backdropUrl = background ?: landscapePoster ?: poster), and if
+        // even the backdrop URL fails to load, fall back to the poster.
+        var artFailed by remember(item.id, item.apiType) { mutableStateOf(false) }
+        val art = if (artFailed) item.poster else item.backdropUrl
         if (!art.isNullOrBlank()) {
             AsyncImage(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-                alignment = BiasAlignment(0f, -.6f))
+                alignment = BiasAlignment(0f, -.6f), onError = { artFailed = true })
         }
         Box(Modifier.fillMaxHeight().fillMaxWidth().background(Brush.horizontalGradient(
             0f to Spec.Background.copy(.92f), .28f to Spec.Background.copy(.60f),

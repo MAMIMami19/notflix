@@ -28,6 +28,7 @@ import com.nuvio.tv.domain.model.stableKey
 import com.nuvio.tv.domain.model.supportsExtra
 import com.nuvio.tv.core.util.filterReleasedItems
 import com.nuvio.tv.core.util.isUnreleased
+import com.nuvio.tv.core.util.withAppLocale
 import com.nuvio.tv.domain.repository.AddonRepository
 import java.time.LocalDate
 import com.nuvio.tv.domain.model.ContentType
@@ -42,6 +43,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +60,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 
 @OptIn(FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -113,6 +119,12 @@ class SearchViewModel @Inject constructor(
     private var activeSearchQuery: String? = null
     private var searchGeneration = 0L
     private var discoverJob: Job? = null
+    // Restyle 3.2: the Movies/Series tabs' per-catalog rows — fetched lazily
+    // (only when a tab is actually shown) so the official grid and the
+    // search screen pay nothing for them.
+    private var tabRowsJob: Job? = null
+    private var tabRowsLoadedType: String? = null
+    private val tabRowsSemaphore = Semaphore(4)
     private var catalogRowsUpdateJob: Job? = null
     private var suggestionJob: Job? = null
     private var liveSearchJob: Job? = null
@@ -249,6 +261,90 @@ class SearchViewModel @Inject constructor(
         if (state.discoverLocation == DiscoverLocation.OFF) return
         if (state.discoverInitialized || state.discoverLoading) return
         viewModelScope.launch { loadDiscoverCatalogs() }
+    }
+
+    /**
+     * Restyle 3.2: load the Movies/Series tab's per-catalog rows — one row
+     * per Discover catalog of the selected type (Trending, Popular, Top
+     * Rated, New, genre rows…), so the tab is a full Netflix-style browse
+     * instead of one catalog re-sliced. Called by the tab UI only (lazy);
+     * a second call for the same type is a no-op. A catalog that errors or
+     * comes back empty simply has no row.
+     */
+    fun ensureTabRowsLoaded() {
+        val type = _uiState.value.selectedDiscoverType
+        if (tabRowsLoadedType == type && !_uiState.value.discoverTabRowsLoading) return
+        if (!_uiState.value.discoverInitialized) return
+        tabRowsJob?.cancel()
+        tabRowsJob = viewModelScope.launch {
+            val catalogs = _uiState.value.discoverCatalogs.filter {
+                it.type.equals(type, ignoreCase = true) &&
+                    !it.type.equals("channel", ignoreCase = true) &&
+                    !it.isWatchlistCatalog()
+            }
+            if (catalogs.isEmpty()) {
+                tabRowsLoadedType = type
+                _uiState.update { it.copy(discoverTabRows = emptyList(), discoverTabRowsLoading = false) }
+                return@launch
+            }
+            _uiState.update { it.copy(discoverTabRowsLoading = true) }
+            val localizedContext = context.withAppLocale()
+            val themeTitles = com.nuvio.tv.ui.screens.home.NotflixThemeTitles(
+                trending = localizedContext.getString(R.string.notflix_theme_trending),
+                popular = localizedContext.getString(R.string.notflix_theme_popular),
+                topRated = localizedContext.getString(R.string.notflix_theme_top_rated),
+                featured = localizedContext.getString(R.string.notflix_theme_featured),
+                new = localizedContext.getString(R.string.notflix_theme_new),
+                watchlist = localizedContext.getString(R.string.notflix_theme_watchlist),
+                calendar = localizedContext.getString(R.string.notflix_theme_calendar),
+                recentlyWatched = localizedContext.getString(R.string.notflix_theme_recently_watched),
+                hintMovies = localizedContext.getString(R.string.notflix_theme_hint_movies),
+                hintSeries = localizedContext.getString(R.string.notflix_theme_hint_series)
+            )
+            val results = try {
+                coroutineScope {
+                    catalogs.map { catalog ->
+                        async {
+                            tabRowsSemaphore.withPermit {
+                                try {
+                                    catalogRepository.getCatalog(
+                                        addonBaseUrl = catalog.addonBaseUrl,
+                                        addonId = catalog.addonId,
+                                        addonName = catalog.addonName,
+                                        catalogId = catalog.catalogId,
+                                        catalogName = catalog.catalogName,
+                                        type = catalog.type,
+                                        skip = 0,
+                                        skipStep = catalog.skipStep,
+                                        supportsSkip = catalog.supportsSkip,
+                                        posterScreen = com.nuvio.tv.core.poster.CustomPosterScreen.SEARCH
+                                    ).first { it is NetworkResult.Success || it is NetworkResult.Error }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            }
+                        }
+                    }.awaitAll()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+            // Only publish if the type hasn't changed under us.
+            if (_uiState.value.selectedDiscoverType != type) return@launch
+            val tabRows = catalogs.zip(results).mapNotNull { (catalog, result) ->
+                val items = (result as? NetworkResult.Success)?.data?.items.orEmpty()
+                if (items.isEmpty()) return@mapNotNull null
+                val name = catalog.catalogName.replaceFirstChar { it.uppercase() }
+                val title = com.nuvio.tv.ui.screens.home.notflixNetflixTitleForCatalog(name, themeTitles) ?: name
+                DiscoverTabRow(key = "tab-${catalog.key}", title = title, items = items)
+            }
+            tabRowsLoadedType = type
+            _uiState.update { it.copy(discoverTabRows = tabRows, discoverTabRowsLoading = false) }
+        }
     }
 
     private val metaPrefetchedIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
@@ -1007,6 +1103,9 @@ class SearchViewModel @Inject constructor(
         if (_uiState.value.discoverLocation == DiscoverLocation.OFF) return
         discoverFallbackTriedKeys.clear()
         discoverSelectionExplicit = false
+        // Restyle 3.2: fresh catalogs invalidate the tab rows.
+        tabRowsJob?.cancel()
+        tabRowsLoadedType = null
         _uiState.update { it.copy(discoverLoading = true) }
         val addons = try {
             searchAddons()
@@ -1075,6 +1174,11 @@ class SearchViewModel @Inject constructor(
     private fun selectDiscoverType(type: String) {
         discoverFallbackTriedKeys.clear()
         discoverSelectionExplicit = false
+        // Restyle 3.2: the tab rows belong to the old type — clear them so
+        // the tab never briefly shows the other type's rows; the tab UI
+        // re-triggers the load for the new type.
+        tabRowsJob?.cancel()
+        tabRowsLoadedType = null
         val catalogs = _uiState.value.discoverCatalogs
         val selectedCatalog = pickDiscoverCatalog(
             catalogs = catalogs,
@@ -1090,7 +1194,9 @@ class SearchViewModel @Inject constructor(
                 discoverResults = emptyList(),
                 pendingDiscoverResults = emptyList(),
                 discoverPage = 1,
-                discoverHasMore = true
+                discoverHasMore = true,
+                discoverTabRows = emptyList(),
+                discoverTabRowsLoading = false
             )
         }
         selectedCatalog?.let { catalog ->

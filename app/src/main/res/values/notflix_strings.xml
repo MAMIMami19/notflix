@@ -30,6 +30,9 @@
          default locale is Arabic (French when the app is French, Arabic
          otherwise), so the restyle strings default to Arabic here. -->
     <string name="notflix_tab_series_programs">مسلسلات وبرامج</string>
+    <!-- Restyle 3.2: the «الجديد» top-bar tab (short form — the full
+         «الجديد على Netflix» is too long for a pill). -->
+    <string name="notflix_tab_new">الجديد</string>
     <string name="notflix_my_space">مساحتي</string>
     <string name="notflix_genre_section_all">الكل</string>
     <string name="notflix_genre_section_new_movies">أفلام جديدة</string>

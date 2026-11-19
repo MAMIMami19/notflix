@@ -123,7 +123,9 @@ fun DiscoverScreen(
                 onItemLongPress = { item, addonBaseUrl ->
                     viewModel.posterOptions.show(item, addonBaseUrl)
                 },
-                onLoadMore = { viewModel.onEvent(SearchEvent.LoadNextDiscoverResults) }
+                onLoadMore = { viewModel.onEvent(SearchEvent.LoadNextDiscoverResults) },
+                // Restyle 3.2: the tab's per-catalog rows load lazily.
+                onEnsureTabRows = { viewModel.ensureTabRowsLoaded() }
             )
         } else {
             DiscoverSection(

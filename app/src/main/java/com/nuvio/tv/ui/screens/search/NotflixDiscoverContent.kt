@@ -21,10 +21,14 @@ import com.nuvio.tv.R
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.ui.appearance.NotflixVisualSpec as Spec
 import com.nuvio.tv.ui.screens.home.NOTFLIX_GENRES
+import com.nuvio.tv.ui.screens.home.NotflixDisplayRow
+import com.nuvio.tv.ui.screens.home.NotflixRowPhase
 import com.nuvio.tv.ui.screens.home.NotflixSimpleRow
 import com.nuvio.tv.ui.screens.home.NotflixTabHero
+import com.nuvio.tv.ui.screens.home.notflixBrowseGenreRows
 import com.nuvio.tv.ui.screens.home.notflixBrowseHero
 import com.nuvio.tv.ui.screens.home.notflixBrowseRows
+import com.nuvio.tv.ui.screens.home.notflixTileFromMeta
 
 /**
  * Restyle 3 (2026-11-19): the Notflix Movies / Series tab — Netflix-style.
@@ -42,9 +46,12 @@ internal fun NotflixDiscoverContent(
     onItemFocused: (MetaPreview) -> Unit,
     onItemLongPress: (MetaPreview, String) -> Unit,
     onLoadMore: () -> Unit,
+    /** Restyle 3.2: the tab's per-catalog rows load lazily, only while a tab is shown. */
+    onEnsureTabRows: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val results = uiState.discoverResults
+    val tabRows = uiState.discoverTabRows
     val trendingTitle = stringResource(R.string.notflix_theme_trending)
     val newTitle = stringResource(R.string.notflix_theme_new)
     // Localized genre titles, resolved in the composable body (a plain
@@ -52,6 +59,9 @@ internal fun NotflixDiscoverContent(
     val genreTitles = mutableMapOf<String, String>()
     for (genre in NOTFLIX_GENRES) {
         genreTitles[genre.tag] = stringResource(genre.titleRes)
+    }
+    LaunchedEffect(uiState.selectedDiscoverType, uiState.discoverInitialized) {
+        if (uiState.discoverInitialized) onEnsureTabRows()
     }
     // Rows need a fuller page than the first load gives; ask for one more
     // page per catalog/type while the list is still thin.
@@ -64,14 +74,36 @@ internal fun NotflixDiscoverContent(
             onLoadMore()
         }
     }
-    val rows = remember(results, trendingTitle, newTitle, genreTitles) {
-        notflixBrowseRows(results, trendingTitle, newTitle) { genre ->
-            genreTitles[genre.tag] ?: genre.titleAr
+    // Restyle 3.2: when the per-catalog rows are in, the tab shows one row
+    // per catalog (Trending, Popular, Top Rated, New, genre rows…) plus
+    // derived genre rows only for the genres with no catalog row of their
+    // own. Until then (or if the fetch fails), the old derived rows from
+    // the selected catalog still fill the tab — never an empty screen.
+    val mergedItems = remember(results, tabRows) {
+        (tabRows.flatMap { it.items } + results).distinctBy { "${it.apiType}:${it.id}" }
+    }
+    val rows = remember(tabRows, mergedItems, results, trendingTitle, newTitle, genreTitles) {
+        if (tabRows.isNotEmpty()) {
+            val catalogRows = tabRows.map { tabRow ->
+                NotflixDisplayRow(tabRow.key, tabRow.key, tabRow.title, NotflixRowPhase.READY,
+                    tabRow.items.map { notflixTileFromMeta(it, tabRow.key) })
+            }
+            val coveredTags = NOTFLIX_GENRES.filter { genre ->
+                tabRows.any { it.title.contains(genre.titleAr) }
+            }.map { it.tag }.toSet()
+            val genreRows = notflixBrowseGenreRows(mergedItems, { genre ->
+                genreTitles[genre.tag] ?: genre.titleAr
+            }, excludeTags = coveredTags)
+            catalogRows + genreRows
+        } else {
+            notflixBrowseRows(results, trendingTitle, newTitle) { genre ->
+                genreTitles[genre.tag] ?: genre.titleAr
+            }
         }
     }
 
     Box(modifier.fillMaxSize().background(Spec.Background).testTag("notflix-discover")) {
-        if (!uiState.discoverInitialized || results.isEmpty()) {
+        if (!uiState.discoverInitialized || (results.isEmpty() && tabRows.isEmpty())) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     stringResource(
@@ -79,7 +111,7 @@ internal fun NotflixDiscoverContent(
                         // is running, show loading — not «no content» for a tab that
                         // is about to fill.
                         if (!uiState.discoverInitialized) R.string.notflix_loading_catalogs
-                        else if (uiState.discoverLoading) R.string.notflix_loading
+                        else if (uiState.discoverLoading || uiState.discoverTabRowsLoading) R.string.notflix_loading
                         else R.string.notflix_no_content
                     ),
                     color = Spec.Secondary, fontSize = 16.sp
@@ -87,7 +119,9 @@ internal fun NotflixDiscoverContent(
             }
             return@Box
         }
-        val hero = remember(results) { notflixBrowseHero(results) }
+        // Restyle 3.2: the hero picks from everything the tab loaded, not
+        // just the selected catalog.
+        val hero = remember(mergedItems) { notflixBrowseHero(mergedItems) }
         LazyColumn(Modifier.fillMaxSize()) {
             if (hero != null) {
                 item("hero") {

@@ -71,7 +71,10 @@ fun NotflixPosterGrid(
     onActualFocus: ((NotflixPosterSpec, Boolean) -> Unit)? = null,
     covered: ((NotflixPosterSpec) -> Boolean)? = null,
     removedFocusKey: (() -> String?)? = null,
-    headerItemCount: Int = 0
+    headerItemCount: Int = 0,
+    /** Restyle 3.2: the focused card expands with data + summary. Library
+     *  only — the category pages keep plain posters. */
+    expandFocusedCard: Boolean = false
 ) {
     val keys = remember(items) { items.map { it.key } }
     val requesters = remember(keys) { keys.associateWith { FocusRequester() } }
@@ -151,7 +154,8 @@ fun NotflixPosterGrid(
                     onFocused(item)
                 },
                 onClick = { onClick(item) },
-                onLongClick = onLongClick?.let { press -> { press(item) } }
+                onLongClick = onLongClick?.let { press -> { press(item) } },
+                expandOnFocus = expandFocusedCard
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {

@@ -1359,6 +1359,7 @@ private fun CardArtwork(tile: NotflixTile, image: String?, showTitle: Boolean, m
     contentAlpha: Float = 1f, sharpImage: String? = null, trailerFocused: Boolean = false,
     preview: @Composable BoxScope.() -> Unit = {}) {
     var failed by remember(image) { mutableStateOf(false) }
+    var loaded by remember(image) { mutableStateOf(false) }
     var logoFailed by remember(tile.meta?.logo) { mutableStateOf(false) }
     var sharpFailed by remember(sharpImage) { mutableStateOf(false) }
     var sharpLoaded by remember(sharpImage) { mutableStateOf(false) }
@@ -1370,8 +1371,17 @@ private fun CardArtwork(tile: NotflixTile, image: String?, showTitle: Boolean, m
         val veil = 1f - contentAlpha
         if (veil > 0f) drawRect(Spec.Background.copy(alpha = veil))
     }) {
+        // Restyle 3.2: while the backdrop loads, the card was pure black for
+        // a moment. The poster is already in Coil's memory cache (the
+        // collapsed card just showed it), so it paints instantly as a
+        // dimmed underlay until the backdrop lands — real art, no black.
+        val underlay = tile.poster.takeIf { !it.isNullOrBlank() && it != image }
+        if (underlay != null && !loaded) {
+            AsyncImage(underlay, null, Modifier.matchParentSize().graphicsLayer { alpha = .45f },
+                contentScale = ContentScale.Crop)
+        }
         if (!image.isNullOrBlank() && !failed) AsyncImage(image, null, Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop, onError = { failed = true })
+            contentScale = ContentScale.Crop, onSuccess = { loaded = true }, onError = { failed = true })
         if (!sharpImage.isNullOrBlank() && sharpImage != image && !sharpFailed) {
             // La imagen normal ya está visible; la nítida solo tapa cuando Coil la tiene.
             AsyncImage(

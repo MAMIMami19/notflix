@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -512,63 +513,73 @@ private fun NotflixSearchStart(
     localizedTitles: Map<String, String> = emptyMap(),
     onCategoryClick: (String) -> Unit = {}
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (recentSearches.isNotEmpty()) {
-            NotflixSectionTitle(stringResource(R.string.notflix_search_recent))
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+    // Restyle 3.2: the quick categories (Netflix-style) — a VERTICAL list
+    // on the right (RTL: first child of the Row), like Netflix's own
+    // search screen; each opens that genre's poster grid. The explore grid
+    // beside it drops to 3 columns (it is narrower now).
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Column(modifier = Modifier.weight(0.30f).fillMaxHeight()) {
+            NotflixSectionTitle(stringResource(R.string.notflix_search_categories))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 12.dp)
             ) {
-                rowItemsIndexed(recentSearches, key = { index, recent -> "$index-$recent" }) { index, recent ->
+                items(NotflixSearchCategories, key = { it.genreTag }) { category ->
                     NotflixRecentChip(
-                        text = recent,
-                        tag = "notflix-search-recent-$index",
-                        onClick = { onRecentSearchClick(recent) }
+                        text = stringResource(category.titleRes),
+                        tag = "notflix-search-category-${category.genreTag}",
+                        onClick = { onCategoryClick(category.genreTag) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         }
-        // Restyle 3: the quick categories (Netflix-style) — a scrollable
-        // chip row; each opens that genre's poster grid.
-        Spacer(modifier = Modifier.height(if (recentSearches.isEmpty()) 0.dp else 18.dp))
-        NotflixSectionTitle(stringResource(R.string.notflix_search_categories))
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(NotflixSearchCategories, key = { it.genreTag }) { category ->
-                NotflixRecentChip(
-                    text = stringResource(category.titleRes),
-                    tag = "notflix-search-category-${category.genreTag}",
-                    onClick = { onCategoryClick(category.genreTag) }
-                )
+        Column(modifier = Modifier.weight(0.70f).fillMaxHeight()) {
+            if (recentSearches.isNotEmpty()) {
+                NotflixSectionTitle(stringResource(R.string.notflix_search_recent))
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    rowItemsIndexed(recentSearches, key = { index, recent -> "$index-$recent" }) { index, recent ->
+                        NotflixRecentChip(
+                            text = recent,
+                            tag = "notflix-search-recent-$index",
+                            onClick = { onRecentSearchClick(recent) }
+                        )
+                    }
+                }
             }
-        }
-        if (discoverResults.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(if (recentSearches.isEmpty()) 0.dp else 18.dp))
-            NotflixSectionTitle(stringResource(R.string.notflix_search_explore))
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Fixed(NOTFLIX_SEARCH_COLUMNS),
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp),
-                contentPadding = PaddingValues(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                gridItems(discoverResults, key = { notflixDiscoverKey(it) }) { item ->
-                    NotflixSearchPoster(
-                        item = item,
-                        title = localizedTitles[notflixDiscoverKey(item)] ?: item.name,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(2f / 3f)
-                            .testTag("notflix-search-explore-${item.id}"),
-                        onFocused = { onItemFocused(item) },
-                        onClick = {
-                            onItemSelected(item)
-                            onNavigateToDetail(item.id, item.apiType, item.sourceAddonBaseUrl.orEmpty())
-                        }
-                    )
+            if (discoverResults.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(if (recentSearches.isEmpty()) 0.dp else 18.dp))
+                NotflixSectionTitle(stringResource(R.string.notflix_search_explore))
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp),
+                    contentPadding = PaddingValues(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    gridItems(discoverResults, key = { notflixDiscoverKey(it) }) { item ->
+                        NotflixSearchPoster(
+                            item = item,
+                            title = localizedTitles[notflixDiscoverKey(item)] ?: item.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
+                                .testTag("notflix-search-explore-${item.id}"),
+                            onFocused = { onItemFocused(item) },
+                            onClick = {
+                                onItemSelected(item)
+                                onNavigateToDetail(item.id, item.apiType, item.sourceAddonBaseUrl.orEmpty())
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -730,10 +741,15 @@ private fun NotflixSearchPoster(
 }
 
 @Composable
-private fun NotflixRecentChip(text: String, tag: String, onClick: () -> Unit) {
+private fun NotflixRecentChip(
+    text: String,
+    tag: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(
                 color = if (focused) Spec.Text else Spec.Surface,
                 shape = RoundedCornerShape(4.dp)

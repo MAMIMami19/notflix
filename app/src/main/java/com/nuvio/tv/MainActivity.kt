@@ -1254,6 +1254,8 @@ open class MainActivity : ComponentActivity() {
                             if (notflixActive) {
                                 add(Screen.SeriesBrowse.route)
                                 add(Screen.MoviesBrowse.route)
+                                // Restyle 3.2: the «الجديد» tab.
+                                add(Screen.NewBrowse.route)
                             }
                             if (discoverLocation == DiscoverLocation.IN_SIDEBAR) {
                                 add(Screen.Discover.route)
@@ -1268,8 +1270,12 @@ open class MainActivity : ComponentActivity() {
                     // Restyle 2: the Netflix-style top bar — search icon,
                     // Home, Series & Programs, Movies, My Space, Settings
                     // gear. Calendar leaves the bar (still in the nav graph).
+                    // Restyle 3.2 adds the «الجديد» tab after Movies.
                     val strNavSeriesPrograms = stringResource(R.string.notflix_tab_series_programs)
                     val strNavMovies = stringResource(R.string.nav_movies)
+                    // Restyle 3.2: the «الجديد» tab (Netflix order: Home,
+                    // Series, Movies, New, My Space).
+                    val strNavNew = stringResource(R.string.notflix_tab_new)
                     val strNavMySpace = stringResource(R.string.notflix_my_space)
                     val strNavSettings = stringResource(R.string.nav_settings)
                     val drawerItems = remember(
@@ -1326,7 +1332,7 @@ open class MainActivity : ComponentActivity() {
                     // modern sidebars keep the stock drawer items.
                     val shellDrawerItems = remember(
                         drawerItems, strNavHome, strNavSearch, strNavSeriesPrograms,
-                        strNavMovies, strNavMySpace, strNavSettings, notflixActive
+                        strNavMovies, strNavNew, strNavMySpace, strNavSettings, notflixActive
                     ) {
                         if (!notflixActive) {
                             drawerItems
@@ -1349,6 +1355,10 @@ open class MainActivity : ComponentActivity() {
                                 DrawerItem(
                                     route = Screen.MoviesBrowse.route,
                                     label = strNavMovies
+                                ),
+                                DrawerItem(
+                                    route = Screen.NewBrowse.route,
+                                    label = strNavNew
                                 ),
                                 DrawerItem(
                                     route = Screen.Library.route,

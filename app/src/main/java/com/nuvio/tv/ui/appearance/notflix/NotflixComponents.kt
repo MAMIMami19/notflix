@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -89,7 +91,11 @@ data class NotflixPosterSpec(
     /** M40 rule: optional «New» style label; the caller decides when it applies. */
     val badge: String? = null,
     /** 0..1 progress bar at the bottom edge. */
-    val progress: Float? = null
+    val progress: Float? = null,
+    /** Restyle 3.2: synopsis for the focused-card expansion (Library only). */
+    val overview: String? = null,
+    /** Restyle 3.2: short facts for the expansion (release info, genres). */
+    val metadata: List<String> = emptyList()
 )
 
 /** Same values the Inicio card shows; no extra metadata is requested here. */
@@ -129,7 +135,10 @@ fun NotflixPosterCard(
     badge: String? = item.badge,
     onFocused: () -> Unit = {},
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    /** Restyle 3.2: the Library's focused card expands with data + summary
+     *  (like the home rows). Off everywhere else — the grid is shared. */
+    expandOnFocus: Boolean = false
 ) {
     var isFocused by remember(item.key) { mutableStateOf(focused) }
     val reducedMotion = LocalNotflixPresentation.current.reduceHomeMotion
@@ -145,10 +154,18 @@ fun NotflixPosterCard(
         animationSpec = if (reducedMotion) snap() else tween(Spec.FOCUS_MS),
         label = "notflix-poster-watched"
     )
+    // The panel only exists when there is something to show in it — a
+    // poster without synopsis or facts stays a plain poster.
+    val showExpansion = expandOnFocus && isFocused &&
+        (!item.overview.isNullOrBlank() || item.metadata.any { it.isNotBlank() })
     Box(
         modifier = modifier
             .width(width)
             .height(height)
+            // The expansion panel draws over the row below; it must paint
+            // above its neighbours (the grid cell itself never grows, so
+            // the grid never reflows).
+            .zIndex(if (showExpansion) 10f else 0f)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -157,13 +174,6 @@ fun NotflixPosterCard(
                 isFocused = state.isFocused
                 if (state.isFocused) onFocused()
             }
-            .clip(RoundedCornerShape(NotflixPosterMetrics.Corner))
-            .background(Spec.Surface)
-            .border(
-                width = 2.dp,
-                color = if (isFocused) Spec.Text else Color.Transparent,
-                shape = RoundedCornerShape(NotflixPosterMetrics.Corner)
-            )
             .onPreviewKeyEvent { event ->
                 if (onLongClick == null) {
                     false
@@ -182,51 +192,110 @@ fun NotflixPosterCard(
             .clickable(role = Role.Button, onClick = { confirmSound(); onClick() })
             .testTag("notflix-poster-${item.key}")
     ) {
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
-            if (!item.poster.isNullOrBlank()) {
-                AsyncImage(
-                    model = item.poster,
-                    contentDescription = item.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+        Box(
+            Modifier.fillMaxSize()
+                .clip(RoundedCornerShape(NotflixPosterMetrics.Corner))
+                .background(Spec.Surface)
+                .border(
+                    width = 2.dp,
+                    color = if (isFocused) Spec.Text else Color.Transparent,
+                    shape = RoundedCornerShape(NotflixPosterMetrics.Corner)
                 )
-            } else {
+        ) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                if (!item.poster.isNullOrBlank()) {
+                    AsyncImage(
+                        model = item.poster,
+                        contentDescription = item.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = item.title,
+                        color = Spec.Text,
+                        fontFamily = Spec.BodyFont,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                    )
+                }
+                Column(
+                    modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    badge?.takeIf { it.isNotBlank() }?.let { NotflixBadge(it) }
+                    RatingBadge(item.rating, source = item.ratingSource)
+                }
+            }
+            item.progress?.let { progress ->
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(Spec.Secondary)
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(Spec.Accent)
+                    )
+                }
+            }
+        }
+        if (showExpansion) {
+            // 1.5x the poster width, centered: 34.dp overhang each side —
+            // exactly the gutter, so the first/last column still fits.
+            val panelWidth = width * 1.5f
+            Column(
+                modifier = Modifier
+                    .width(panelWidth)
+                    .offset(x = -(width * 0.25f), y = height + 4.dp)
+                    .background(Spec.Surface, RoundedCornerShape(4.dp))
+                    .border(1.dp, Spec.Text.copy(alpha = 0.25f), RoundedCornerShape(4.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = item.title,
                     color = Spec.Text,
                     fontFamily = Spec.BodyFont,
-                    fontSize = 12.sp,
-                    lineHeight = 15.sp,
+                    fontSize = 14.sp,
+                    lineHeight = 17.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(8.dp)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            }
-            Column(
-                modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                badge?.takeIf { it.isNotBlank() }?.let { NotflixBadge(it) }
-                RatingBadge(item.rating, source = item.ratingSource)
-            }
-        }
-        item.progress?.let { progress ->
-            Box(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(Spec.Secondary)
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(progress.coerceIn(0f, 1f))
-                        .fillMaxHeight()
-                        .background(Spec.Accent)
-                )
+                val facts = item.metadata.filter { it.isNotBlank() }.joinToString(" · ")
+                if (facts.isNotBlank()) {
+                    Text(
+                        text = facts,
+                        color = Spec.Secondary,
+                        fontFamily = Spec.BodyFont,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                item.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                    Text(
+                        text = overview,
+                        color = Spec.Secondary,
+                        fontFamily = Spec.BodyFont,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
