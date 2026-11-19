@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.nuvio.tv.R
-import com.nuvio.tv.domain.model.ContinueWatchingItem
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.ui.appearance.LocalNotflixPresentation
 import com.nuvio.tv.ui.appearance.NotflixVisualSpec as Spec

@@ -136,7 +136,7 @@ fun LibraryScreen(
     onCloudPlaybackResolved: (CloudLibraryPlaybackInfo) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     /** Restyle 3: My Space shows Continue Watching (shared HomeViewModel). */
-    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList()
+    continueWatchingItems: List<com.nuvio.tv.ui.screens.home.ContinueWatchingItem> = emptyList()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()

@@ -155,7 +155,7 @@ internal fun NotflixLibraryPage(
     resolvingCloudFileKey: String?,
     onCloudItemClick: (CloudLibraryItem) -> Unit,
     /** Restyle 3: the My Space sections above My List. */
-    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList(),
+    continueWatchingItems: List<com.nuvio.tv.ui.screens.home.ContinueWatchingItem> = emptyList(),
     trailerHistory: List<com.nuvio.tv.data.local.NotflixTasteEntry> = emptyList(),
     likedTitles: List<com.nuvio.tv.data.local.NotflixTasteEntry> = emptyList(),
     onOpenTitle: (String, String) -> Unit = { _, _ -> }
@@ -1116,7 +1116,7 @@ internal fun NotflixLibraryScreen(
     onNavigateToDetail: (String, String, String?) -> Unit,
     onNavigateToHome: () -> Unit,
     /** Restyle 3: My Space shows Continue Watching (shared HomeViewModel). */
-    continueWatchingItems: List<com.nuvio.tv.domain.model.ContinueWatchingItem> = emptyList()
+    continueWatchingItems: List<com.nuvio.tv.ui.screens.home.ContinueWatchingItem> = emptyList()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()
